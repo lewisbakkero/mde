@@ -82,15 +82,47 @@ $$MDE_{CUPAC} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-\rh
 
 Where $\rho_{ML}$ is the correlation between ML prediction $\hat{Y}_{ML}$ and actual outcome $Y$. Since ML models can achieve $\rho_{ML} > \rho_{single}$, CUPAC achieves greater MDE reduction than basic CUPED.
 
+
+### Covariate Adjustment via the Imputation Operator
+
+The following summary outlines the mathematical framework for leveraging pre-experiment data to increase the precision of A/B tests at scale.
+
+#### 1. The Imputation Operator
+The imputation operator $\hat{f}_t$ fills in missing counterfactuals by combining observed outcomes $Y_n$ with predictions from a model trained on covariates $z_n$.
+
+$$\hat{Y}_n(t) = 
+\begin{cases} 
+Y_n & \text{if } J_n = t \\ 
+\hat{f}(z_n; \hat{\theta}_t) & \text{if } J_n = 1-t 
+\end{cases}$$
+
+The efficiency gain is directly tied to the model's predictive power ($R^2$). 
+
+**Variance Adjustment:**
+$$\sigma^2_{\text{adj}} \approx \sigma^2_{\text{DIM}} \cdot (1 - R^2)$$
+
+*For example, an $R^2$ of 0.5 allows an experiment to reach the same power in half the time.*
+
 **Method:**
-1. Train ML model to predict outcome $Y$ using all available features
-2. Use prediction $\hat{Y}_{ML}$ as the covariate in CUPED framework
-3. Adjust: $\hat{Y}_{CUPAC} = Y - \theta(\hat{Y}_{ML} - \bar{\hat{Y}}_{ML})$
+
+1.  **Fit:** Train $\hat{f}_0$ on the control group and $\hat{f}_1$ on the treatment group using pre-experiment covariates $z_n$.
+2.  **Impute:** For every user $n$, compute the "completed" outcomes $(\hat{Y}_n(0), \hat{Y}_n(1))$.
+3.  **Estimate:** Calculate the Average Treatment Effect (ATE):
+    $$\widehat{ATE} = \frac{1}{N} \sum_{n=1}^{N} \left( \hat{Y}_n(1) - \hat{Y}_n(0) \right)$$
 
 **Key Findings:**
 - 10-30% additional variance reduction over basic CUPED
-- Particularly effective for complex metrics
+- Particularly effective for complex metrics, imbalanced data
 - Requires ML infrastructure investment
+
+Different ML models offer different tradeoffs:
+
+| Model | Mechanism | Strength | Scaling Challenge |
+| :--- | :--- | :--- | :--- |
+| **Linear Regression** | Ordinary Least Squares | Simple and fast | Overfits with high-dimensional $z$ |
+| **Lasso (L1)** | Sparsity Penalty | Automatic feature selection | Tuning $\lambda$ is computationally expensive |
+| **PCR** | PCA + Regression | Handles collinearity | Requires pre-computing principal components |
+
 
 **Limitations:**
 - Requires ML infrastructure and model maintenance
@@ -103,7 +135,22 @@ Where $\rho_{ML}$ is the correlation between ML prediction $\hat{Y}_{ML}$ and ac
 
 **Source:** [From Augmentation to Decomposition: A New Look at CUPED (2023)](https://alexdeng.github.io/public/files/CUPED_2023_Metric_Decomp.pdf)
 
-**Core Idea:** Provides theoretical framework for optimal covariate selection and multiple covariate extension.
+**Core Idea:** Provides theoretical framework for optimal covariate selection and multiple covariate extension. Moving beyond simple regression, CUPED (2023) is viewed as an **Efficiency Augmentation**. Given a raw treatment effect estimator $\hat{\Delta}$, we add a mean-zero term to reduce noise without introducing bias.
+
+$$\hat{\Delta}_{aug} = \hat{\Delta} - \theta \hat{\Delta}_{null}$$
+
+Where:
+* $\hat{\Delta} = \bar{Y}_T - \bar{Y}_C$ (The observed difference)
+* $\hat{\Delta}_{null}$ is a term where $E[\hat{\Delta}_{null}] = 0$ (The "Noise" term)
+* $\theta = \frac{Cov(\hat{\Delta}, \hat{\Delta}_{null})}{Var(\hat{\Delta}_{null})}$ (The optimal scaling factor)
+
+The "New Look" involves decomposing a current metric $Y$ into two distinct components:
+
+$$Y = Y_{null} + Y_{residual}$$
+
+* **$Y_{null}$ (Approximate Null Augmentation):** The portion of the metric "that would have happened anyway" (e.g., via counterfactual logging). It is highly correlated with $Y$ but independent of the treatment.
+* **$Y_{residual}$:** The component actually sensitive to the treatment effect.
+
 
 **MDE Equation Modification:**
 With multiple covariates $X_1, ..., X_k$:
@@ -111,13 +158,15 @@ $$MDE_{multi} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-R^2
 
 Where $R^2$ is the coefficient of determination from regressing $Y$ on all covariates. This generalizes the single-covariate case where $R^2 = \rho^2$.
 
+In this framework, $\rho$ is typically much higher than in traditional CUPED because $Y_{null}$ is measured **during** the experiment rather than using historical data.
+
 **Method:**
 1. Decompose outcome into signal (treatment effect) and noise (individual variation)
 2. Use optimal linear combination of multiple covariates
 3. Achieve semiparametric efficiency bound
 
 **Key Findings:**
-- Provides theoretical guidance on covariate selection
+- Provides theoretical guidance on covariate selection, splits
 - Multiple covariates can achieve higher $R^2$ than single covariate
 - Connections to semiparametric efficiency theory
 
@@ -125,6 +174,15 @@ Where $R^2$ is the coefficient of determination from regressing $Y$ on all covar
 - Requires careful covariate engineering
 - Diminishing returns with additional covariates
 - Overfitting risk with many covariates
+
+| Feature | Deng et al. (Airbnb) | Masoero et al. (Amazon/DoorDash) |
+| :--- | :--- | :--- |
+| **Primary Method** | Metric Decomposition (ANA) | Cross-fitted G-Computation |
+| **Philosophy** | "Subtract the Noise" | "Impute the Missing Counterfactual" |
+| **Covariate Source** | In-experiment counterfactuals | High-dimensional pre-experiment features |
+| **Model Type** | Linear/Taylor Expansion | Non-linear Machine Learning (XGBoost) |
+| **Best Use Case** | Ranking and Recommendation engines | Large-scale General Experiment Platforms |
+| **Scaling Mechanism**| Domain-specific logging | Automated Cross-fitting (DML) |
 
 ---
 
