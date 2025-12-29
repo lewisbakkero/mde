@@ -353,7 +353,7 @@ All methods in this section reduce MDE by enabling early stopping, effectively r
 For a fixed-horizon test with sample size $n$, GST allows early stopping. The expected sample size under the alternative is:
 $$E[n_{GST}] = n \cdot ASN_{ratio}$$
 
-Where $ASN_{ratio} < 1$ (typically 0.5-0.7 under true effect). The effective MDE becomes:
+Where **ASN (Average Sample Number)** is the expected number of samples before the test terminates. $ASN_{ratio} = E[n_{GST}]/n_{fixed}$ is typically 0.5-0.7 when a true effect exists, meaning GST requires fewer samples on average. The effective MDE becomes:
 $$MDE_{GST} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2}{n/ASN_{ratio}}}$$
 
 **Method:**
@@ -385,9 +385,55 @@ $$MDE_{AVI} \approx (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2 \
 
 Where $c_{AVI} \approx 1.2-1.3$ is the penalty for continuous monitoring, but $E[n_{stop}] < n_{fixed}$.
 
+**Key Parameters Explained:**
+
+1. **α (Significance Level):** The Type I error rate—probability of falsely rejecting the null hypothesis when no true effect exists. Typically α = 0.05 (5%). This is the same α from the baseline MDE formula.
+
+2. **c_AVI (Always Valid Inference Penalty Factor):** The "price" paid for continuous monitoring validity, typically **1.2-1.3**. This means confidence intervals are 20-30% wider than fixed-horizon tests.
+
+   *Where does c_AVI come from?* The confidence sequence uses `log(2/α)` instead of `z²_{α/2}` and includes a `(1 + 1/t)` correction term. For a fixed-horizon test at sample size n:
+   - Fixed-horizon CI half-width: $z_{\alpha/2} \cdot \sigma/\sqrt{n}$
+   - Always-valid CI half-width: $\sqrt{2\sigma^2(1 + 1/n)\log(2/\alpha)/n}$
+   
+   The ratio of these widths gives c_AVI. For α = 0.05 and large n:
+   $c_{AVI} \approx \sqrt{\frac{2\log(40)}{z_{0.025}^2}} \approx \sqrt{\frac{2 \times 3.69}{3.84}} \approx 1.39$
+   
+   In practice, optimized mixture constructions achieve c_AVI ≈ 1.2-1.3.
+
+3. **E[n_stop] (Expected Stopping Sample Size):** The expected number of observations before the experiment terminates.
+
+   *How is E[n_stop] calculated?* It's the expectation over the stopping time distribution:
+   $E[n_{stop}] = \sum_{t=1}^{\infty} t \cdot P(\text{stop at } t) = \sum_{t=1}^{\infty} P(\text{not stopped by } t)$
+   
+   Under the **null hypothesis** (no effect): E[n_stop] = ∞ (never stop, or stop at max sample size)
+   
+   Under the **alternative hypothesis** (true effect δ exists): The stopping time depends on how quickly evidence accumulates. For a confidence sequence that excludes 0 when |μ̂_t| > boundary_t:
+   
+   $P(\text{stop by } t | \delta) = P\left(\left|\hat{\mu}_t - 0\right| > \sqrt{\frac{2\sigma^2(1+1/t)\log(2/\alpha)}{t}} \Big| \mu = \delta\right)$
+   
+   Since $\hat{\mu}_t \sim N(\delta, \sigma^2/t)$ under the alternative, this becomes:
+   $P(\text{stop by } t | \delta) = 1 - \Phi\left(\frac{boundary_t - \delta}{\sigma/\sqrt{t}}\right) + \Phi\left(\frac{-boundary_t - \delta}{\sigma/\sqrt{t}}\right)$
+   
+   The expected stopping time is then:
+   $E[n_{stop}|\delta] = \sum_{t=1}^{n_{max}} \left[1 - P(\text{stop by } t | \delta)\right]$
+   
+   **Practical approximation:** For effect size δ and variance σ², E[n_stop] scales roughly as:
+   $E[n_{stop}] \approx \frac{c \cdot \sigma^2 \cdot \log(1/\alpha)}{\delta^2}$
+   
+   where c is a constant depending on the specific confidence sequence construction (typically c ≈ 4-8).
+
 **Method:**
 Uses mixture martingale approach to create confidence sequences:
 $$CS_t = \left[\hat{\mu}_t \pm \sqrt{\frac{2\sigma^2(1 + 1/t)\log(2/\alpha)}{t}}\right]$$
+
+The key insight is that this boundary shrinks as $O(1/\sqrt{t})$ but with a $\sqrt{\log(2/\alpha)}$ factor instead of $z_{\alpha/2}$, ensuring validity at all stopping times.
+
+**Net Efficiency Trade-off:**
+- **Cost:** Wider CI by factor c_AVI ≈ 1.2-1.3
+- **Benefit:** Earlier stopping when effect exists, so E[n_stop] < n_fixed
+- **Break-even:** When $\frac{c_{AVI}}{1} < \frac{n_{fixed}}{E[n_{stop}]}$, i.e., when early stopping savings exceed the width penalty
+
+For moderate-to-large effects, the early stopping benefit typically dominates, yielding net MDE reduction.
 
 **Key Findings:**
 - Enables truly continuous monitoring
