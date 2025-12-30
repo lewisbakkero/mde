@@ -73,7 +73,9 @@ Where $\theta = \frac{Cov(Y, X)}{Var(X)}$ minimizes variance.
 
 ### 2.2 CUPAC (Controlled-experiment Using Predictions As Covariates)
 
-**Source:** [Leveraging covariate adjustments at scale in online A/B testing](https://www.amazon.science/publications/leveraging-covariate-adjustments-at-scale-in-online-a-b-testing)
+**Source:** 
+[Control Using Predictions as Covariates in Switchback Experiments](https://www.researchgate.net/profile/Yixin-Tang-5/publication/345698207_Control_Using_Predictions_as_Covariates_in_Switchback_Experiments/links/5fab109b458515078107aa8b/Control-Using-Predictions-as-Covariates-in-Switchback-Experiments.pdf)
+[Leveraging covariate adjustments at scale in online A/B testing](https://www.amazon.science/publications/leveraging-covariate-adjustments-at-scale-in-online-a-b-testing)
 
 **Core Idea:** Use ML predictions as covariates instead of raw pre-experiment data.
 
@@ -816,9 +818,13 @@ Apply False Discovery Rate (FDR) controls to ensure that a "lucky" win doesn't r
 
 ### 4.7 Adaptive Experimental Design and Counterfactual Inference
 
+Traditional A/B tests are great for inference (figuring out why something works) but are expensive because they send 50% of traffic to a potentially inferior version. Adaptive designs (like Bandits) are great for payoff (quickly moving traffic to the winner) but often "break" standard statistical tests.
+
+In the real world, user behavior changes (e.g., weekends vs. weekdays). If an adaptive algorithm naively moves traffic based on early, unrepresentative data, it can create a feedback loop that leads to Simpson’s Paradox, where the algorithm "convinces itself" a bad treatment is good, simply because it was tested during a high-traffic or high-converting time period
+
 **Source:** [Adaptive experimental design and counterfactual inference](https://arxiv.org/abs/2210.14369)
 
-**Core Idea:** Use adaptive allocation and counterfactual reasoning to improve experimental efficiency.
+**Core Idea:** Use adaptive allocation and counterfactual reasoning (based on cumulative gain) to improve experimental efficiency. 
 
 **MDE Equation Modification:**
 Adaptive designs can achieve:
@@ -830,6 +836,7 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 1. Adaptively allocate samples based on observed outcomes
 2. Use counterfactual inference to impute missing potential outcomes
 3. Combine observed and imputed data for estimation
+4. Relies on always valid stats 
 
 **Key Findings:**
 - Can improve efficiency over fixed allocation
@@ -885,7 +892,7 @@ Methods in this section address the unique challenges of two-sided marketplaces 
 
 ### 5.1 Experimental Design in Marketplaces
 
-**Source:** "Experimental Design in Marketplaces"
+**Source:** [Experimental Design in Marketplaces]()
 
 **Core Idea:** Design experiments that account for two-sided interference and equilibrium effects.
 
