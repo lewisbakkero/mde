@@ -298,6 +298,7 @@ Where $R^2_{combined} > R^2_{CUPED}$ because:
 
 **Method:**
 The combined estimator uses both pre-experiment covariate $X_{pre}$ and in-experiment control data $X_{in}$:
+
 $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} - \bar{X}_{in})$$
 
 **Key Findings:**
@@ -483,7 +484,7 @@ Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
    $$L_n(\theta) = \frac{P(\text{data} | \theta)}{P(\text{data} | \theta = 0)}$$
    
    For normally distributed data with known variance$$ $\sigma^2$:
-   $$L_n(\theta) = \exp\left(\frac{n\theta\bar{X}}{\sigma^2} - \frac{n\theta^2}{2\sigma^2}\right)$$
+   $L_n(\theta) = \exp\left(\frac{n\theta\bar{X}}{\sigma^2} - \frac{n\theta^2}{2\sigma^2}\right)$
    
    where $\bar{X}$ is the observed sample mean difference.
 
