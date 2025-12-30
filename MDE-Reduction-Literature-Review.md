@@ -460,7 +460,7 @@ For moderate-to-large effects, the early stopping benefit typically dominates, y
 
 ### 3.3 Mixture Sequential Probability Ratio Test (mSPRT)
 
-**Source:** Popularized by Optimizely, Amplitude; based on Robbins (1970)
+**Source:** Popularized by Optimizely, Amplitude; based on [Robbins (1974)](https://www.jstor.org/stable/2285511)
 
 **Core Idea:** Sequential test using mixture of likelihood ratios over effect sizes.
 
@@ -474,6 +474,29 @@ Where $E[n_{stop}]$ is typically 20-40% less than fixed-horizon $n$ when effect 
 Compute mixture likelihood ratio:
 $$\Lambda_n = \int L_n(\theta) \pi(\theta) d\theta$$
 Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
+
+**Key Terms Explained:**
+
+1. **θ (theta):** The unknown treatment effect size (e.g., difference in means between treatment and control). This is what we're trying to detect.
+
+2. **L_n(θ) - Likelihood Ratio:** The ratio of data probability under effect size θ versus the null (θ=0):
+   $$L_n(\theta) = \frac{P(\text{data} | \theta)}{P(\text{data} | \theta = 0)}$$
+   
+   For normally distributed data with known variance$$ $\sigma^2$:
+   $$L_n(\theta) = \exp\left(\frac{n\theta\bar{X}}{\sigma^2} - \frac{n\theta^2}{2\sigma^2}\right)$$
+   
+   where $\bar{X}$ is the observed sample mean difference.
+
+3. **π(θ) - Mixing Distribution:** A prior distribution over possible effect sizes. Common choices:
+   - **Normal:** $\pi(\theta) = N(0, \tau^2)$ - centered at zero with spread τ
+   - **Uniform:** $\pi(\theta) = U[-\delta_{max}, \delta_{max}]$ - equal weight on an interval
+   - **Point mass mixture:** discrete weights on specific effect sizes
+
+4. **dθ:** Standard calculus notation indicating integration over all possible θ values.
+
+5. **The Integral Λ_n:** Averages the likelihood ratio across all possible effect sizes, weighted by how plausible each is (according to π). This makes mSPRT robust—you don't need to guess the exact effect size in advance.
+
+**Why use a mixture?** A standard SPRT requires specifying a single alternative θ₁. If you guess wrong, power suffers. The mixture approach hedges by considering a range of alternatives, providing robustness to effect size misspecification.
 
 **Key Findings:**
 - More powerful than fixed-horizon tests when effect exists
@@ -489,7 +512,7 @@ Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
 
 ### 3.4 Non-Stationary A/B Tests
 
-**Source:** Non-stationary A/B tests (addresses time-varying treatment effects)
+**Source:** [Non-stationary A/B tests](https://www.amazon.science/publications/non-stationary-a-b-tests) (addresses time-varying treatment effects)
 
 **Core Idea:** Account for non-stationarity in treatment effects over time, improving estimation accuracy.
 
@@ -978,17 +1001,17 @@ Where $n_{prior}$ is the effective sample size from historical data.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         MDE Reduction Decision Tree                          │
+│                         MDE Reduction Decision Tree                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │  1. What type of system are you testing?                                    │
-│     ├─ Ranking/Recommendation → Consider INTERLEAVED TESTING (50-90% MDE↓) │
+│     ├─ Ranking/Recommendation → Consider INTERLEAVED TESTING (50-90% MDE↓)  │
 │     └─ Other → Continue to step 2                                           │
-│                                                                              │
+│                                                                             │
 │  2. Do you have pre-experiment data?                                        │
-│     ├─ Yes → Start with CUPED/CUPAC (20-60% MDE↓)                          │
-│     └─ No  → Consider stratification (10-30% MDE↓)                         │
-│                                                                              │
+│     ├─ Yes → Start with CUPED/CUPAC (20-60% MDE↓)                           │
+│     └─ No  → Consider stratification (10-30% MDE↓)                          │
+│                                                                             │
 │  3. Is there interference between units?                                    │
 │     ├─ Yes → Consider:                                                      │
 │     │        ├─ Budget-split (ad marketplaces)                              │
@@ -996,15 +1019,15 @@ Where $n_{prior}$ is the effective sample size from historical data.
 │     │        ├─ Cluster randomization (geographic)                          │
 │     │        └─ Multiple randomization (effect decomposition)               │
 │     └─ No  → Standard randomization + variance reduction                    │
-│                                                                              │
+│                                                                             │
 │  4. Do you need continuous monitoring?                                      │
 │     ├─ Yes → mSPRT or Always Valid Inference                                │
 │     └─ No  → GST or fixed-horizon                                           │
-│                                                                              │
+│                                                                             │
 │  5. Do you have historical experiment data?                                 │
-│     ├─ Yes → Leverage cross-experiment learning (20-40% MDE↓)              │
+│     ├─ Yes → Leverage cross-experiment learning (20-40% MDE↓)               │
 │     └─ No  → Build experiment database for future                           │
-│                                                                              │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1087,56 +1110,6 @@ Where $n_{prior}$ is the effective sample size from historical data.
 
 ---
 
-## 11. References
-
-1. Deng, A., Xu, Y., Kohavi, R., & Walker, T. (2013). Improving the sensitivity of online controlled experiments by utilizing pre-experiment data. *WSDM*.
-
-2. Johari, R., Koomen, P., Pekelis, L., & Walsh, D. (2017). Always valid inference: Continuous monitoring of A/B tests. *Operations Research*.
-
-3. Bojinov, I., Simchi-Levi, D., & Zhao, J. (2020). Design and analysis of switchback experiments. *Management Science*.
-
-4. Xiong, R., et al. (2023). Data-driven switchback experiments: Theoretical tradeoffs and empirical Bayes designs. *NeurIPS*.
-
-5. Basse, G., Ding, P., Feller, A., & Toulis, P. (2024). Optimal experimental design for staggered rollouts. *Journal of Causal Inference*.
-
-6. Liu, M., Mao, J., & Kang, K. (2023). Trustworthy online marketplace experimentation with budget-split design. *KDD*.
-
-7. Poyarkov, A., et al. (2016). Boosted decision tree regression adjustment for variance reduction in online controlled experiments. *KDD*.
-
-8. Hu, Y., et al. (2022). Unraveling the interplay between carryover effects and reward autocorrelations in switchback experiments. *ICML*.
-
-9. Ye, T., et al. (2023). Robust and efficient multiple-unit switchback experimentation. *Operations Research*.
-
-10. Bajari, P., et al. (2023). Multiple randomization designs: Estimation and inference with interference. *Econometrica*.
-
-11. Johari, R., et al. (2022). Experimental design in marketplaces. *Management Science*.
-
-12. Dimakopoulou, M., et al. (2019). Multi-armed bandits with network interference. *ICML*.
-
-13. Kohavi, R., Tang, D., & Xu, Y. (2020). *Trustworthy Online Controlled Experiments: A Practical Guide to A/B Testing*. Cambridge University Press.
-
-14. Xie, H., & Aurisset, J. (2016). Improving the sensitivity of online controlled experiments: Case studies at Netflix. *KDD*.
-
-15. Ye, T., & Shao, J. (2023). Efficient semiparametric estimation of average treatment effects under covariate adaptive randomization. *Journal of Econometrics*.
-
-16. Chen, S., et al. (2023). From augmentation to decomposition: A new look at CUPED. *arXiv preprint*.
-
-17. Chapelle, O., Joachims, T., Radlinski, F., & Yue, Y. (2012). Large-scale validation and analysis of interleaved search evaluation. *ACM TOIS*.
-
-18. Chen, Y., et al. (2023). Variance reduction combining pre-experiment and in-experiment data. *WWW*.
-
-19. O'Brien, P. C., & Fleming, T. R. (1979). A multiple testing procedure for clinical trials. *Biometrics*.
-
-20. Pocock, S. J. (1977). Group sequential methods in the design and analysis of clinical trials. *Biometrika*.
-
-21. Debiased balanced interleaving at Amazon Search. *Amazon Science*.
-
-22. Non-stationary A/B tests. *Experimentation literature*.
-
-23. Adaptive experimental design and counterfactual inference. *Causal inference literature*.
-
----
-
 ## Appendix A: Mathematical Details
 
 ### A.1 Baseline MDE Formula Derivation
@@ -1157,14 +1130,14 @@ $$\theta^* = \frac{Cov(Y, X)}{Var(X)}$$
 This gives:
 $$Var(\hat{Y}_{adj}) = Var(Y) - \frac{Cov(Y,X)^2}{Var(X)} = Var(Y)(1 - \rho_{XY}^2)$$
 
-### A.3 Interleaved Testing Variance
+### A.2 Interleaved Testing Variance
 
 In interleaved testing, each user provides a paired comparison. Let $D_i = Y_i^T - Y_i^C$ be the preference for user $i$:
 $$Var(\bar{D}) = \frac{Var(D)}{n} = \frac{Var(Y^T) + Var(Y^C) - 2Cov(Y^T, Y^C)}{n}$$
 
 Since $Cov(Y^T, Y^C)$ is typically large (same user), $Var(D) \ll 2\sigma^2$.
 
-### A.4 Switchback Variance
+### A.3 Switchback Variance
 
 For a switchback design with $T$ periods and treatment indicator $W_t$:
 $$\hat{\tau} = \frac{1}{T_1}\sum_{t:W_t=1} Y_t - \frac{1}{T_0}\sum_{t:W_t=0} Y_t$$
@@ -1173,40 +1146,3 @@ With carryover effect $\gamma$ and autocorrelation $\rho$:
 $$Var(\hat{\tau}) \approx \frac{2\sigma^2}{T}\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 
 ---
-
-## Appendix B: Implementation Checklist
-
-### B.1 CUPED Implementation
-- [ ] Identify pre-experiment period (typically 7-28 days)
-- [ ] Select covariate (same metric in pre-period works well)
-- [ ] Compute $\theta$ from historical data
-- [ ] Apply adjustment: $Y_{adj} = Y - \theta(X - \bar{X})$
-- [ ] Use $Y_{adj}$ in standard t-test
-- [ ] Validate variance reduction on historical experiments
-
-### B.2 Sequential Testing Implementation
-- [ ] Choose method (GST vs. mSPRT vs. Always Valid)
-- [ ] Set significance level and power
-- [ ] Define stopping rules
-- [ ] Implement monitoring dashboard
-- [ ] Set up automated stopping decisions
-- [ ] Validate Type I error control via simulation
-
-### B.3 Interleaved Testing Implementation
-- [ ] Design interleaving algorithm (team-draft, balanced, etc.)
-- [ ] Implement result merging logic
-- [ ] Define preference signal (clicks, dwell time, etc.)
-- [ ] Use paired statistical test
-- [ ] Validate with A/A tests
-
-### B.4 Switchback Implementation
-- [ ] Estimate carryover and autocorrelation from historical data
-- [ ] Optimize period length using data-driven approach
-- [ ] Design randomization schedule
-- [ ] Implement treatment switching mechanism
-- [ ] Account for carryover in analysis
-
----
-
-*Document Version: 2.0*
-*Last Updated: December 2024*
