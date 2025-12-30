@@ -219,7 +219,49 @@ $$\sigma^2_{within} = \sigma^2 - \sigma^2_{between}$$
 
 ---
 
-### 2.5 Efficient Semiparametric Estimation Under Covariate Adaptive Randomization
+### 2.5 Temporal Stratification for Non-Stationary A/B Tests
+
+**Source:** [Non-stationary A/B tests](https://www.amazon.science/publications/non-stationary-a-b-tests) (addresses time-varying treatment effects)
+
+**Core Idea:** Account for non-stationarity in treatment effects over time by stratifying data into time buckets. Instead of just averaging all Group A and all Group B results, the data is partitioned into temporal strata, with the number of strata growing adaptively as more data arrives.
+
+**MDE Equation Modification:**
+Standard stratification removes between-strata variance. For temporal stratification with $K$ time buckets:
+$$MDE_{temporal} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{within-time}}{n}}$$
+
+Where $\sigma^2_{within-time} = \sigma^2 - \sigma^2_{between-time}$, and $\sigma^2_{between-time}$ captures variance due to time-varying treatment effects and temporal trends.
+
+The key innovation is using a **sample-dependent number of strata** $K(n)$:
+- As sample size $n$ grows, the number of time buckets $K(n)$ increases
+- Finer buckets capture more temporal variation
+- Optimal $K(n)$ balances bias (too few buckets) vs. variance (too many buckets)
+
+**Variance Reduction Mechanism:**
+$$\sigma^2_{within-time} = \sigma^2 \cdot (1 - \eta^2_{temporal})$$
+
+Where $\eta^2_{temporal} = \sigma^2_{between-time}/\sigma^2$ is the fraction of variance explained by temporal effects. Typical values: 10-30% variance reduction in non-stationary environments.
+
+**Method:**
+1. Partition experiment duration into $K(n)$ time buckets
+2. Compute treatment effect within each bucket
+3. Aggregate using inverse-variance weighting across buckets
+4. Adaptively refine bucket granularity as data accumulates
+
+**Key Findings:**
+- Reduces bias from time-varying effects
+- Improves variance estimation accuracy
+- Particularly relevant for long-running experiments with temporal trends
+- Adaptive bucket sizing outperforms fixed stratification
+
+**Limitations:**
+- Requires modeling assumptions about temporal dynamics
+- More complex analysis than standard stratification
+- May require longer experiments to estimate dynamics
+- Computational overhead for adaptive bucket selection
+
+---
+
+### 2.6 Efficient Semiparametric Estimation Under Covariate Adaptive Randomization
 
 **Source:** [Covariate Adjustment in Randomized Trials](https://covariateadjustment.github.io/)
 
@@ -283,7 +325,7 @@ The efficient variance $\sigma^2_{eff}$ is derived from the **efficient influenc
 
 ---
 
-### 2.6 Variance Reduction Combining Pre-Experiment and In-Experiment Data
+### 2.7 Variance Reduction Combining Pre-Experiment and In-Experiment Data
 
 **Source:** [Variance reduction combining pre-experiment and in-experiment data](https://arxiv.org/abs/2410.09027)
 
@@ -320,7 +362,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 
 ---
 
-### 2.7 Variance Reduction Methods: Comparison Table
+### 2.8 Variance Reduction Methods: Comparison Table
 
 | Method | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
 |--------|------------------|---------------------------|------------|-------------------|---------------|
@@ -328,6 +370,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 | **CUPAC** | $\sigma^2 \rightarrow \sigma^2(1-\rho_{ML}^2)$ | 30-60% | Medium | ML infrastructure | Complex metrics |
 | **Multi-Covariate** | $\sigma^2 \rightarrow \sigma^2(1-R^2)$ | 30-60% | Medium | Multiple covariates | Rich feature sets |
 | **Stratification** | $\sigma^2 \rightarrow \sigma^2_{within}$ | 10-30% | Low | Stratification vars | Heterogeneous populations |
+| **Temporal Stratification** | $\sigma^2 \rightarrow \sigma^2(1-\eta^2_{temporal})$ | 10-30% | Medium | Time-series data | Non-stationary environments |
 | **Semiparametric** | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator | Theoretical benchmark |
 | **Pre+In Combined** | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + concurrent control | Volatile environments |
 
@@ -345,7 +388,10 @@ Several variance reduction methods can be combined, but with diminishing returns
 
 3. **Diminishing Returns:** The semiparametric bound $\sigma^2_{eff}$ is the theoretical floor. Gains are sub-multiplicative because methods capture overlapping variance.
 
-**Practical guidance:** Start with CUPED (low complexity, high impact), add stratification if population is heterogeneous, upgrade to CUPAC or Pre+In only if substantial residual variance remains.
+4. **Temporal Stratification + CUPED:** Can be combined—temporal stratification handles time-varying effects while CUPED handles individual-level variance. The combined effect is approximately multiplicative:
+   $\sigma^2_{combined} \approx \sigma^2 \cdot (1-\eta^2_{temporal}) \cdot (1-\rho^2)$
+
+**Practical guidance:** Start with CUPED (low complexity, high impact), add stratification if population is heterogeneous, add temporal stratification for long-running experiments with non-stationarity, upgrade to CUPAC or Pre+In only if substantial residual variance remains.
 
 
 ---
@@ -511,43 +557,13 @@ Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
 
 ---
 
-### 3.4 Non-Stationary A/B Tests
-
-**Source:** [Non-stationary A/B tests](https://www.amazon.science/publications/non-stationary-a-b-tests) (addresses time-varying treatment effects)
-
-**Core Idea:** Account for non-stationarity in treatment effects over time, improving estimation accuracy.
-
-**MDE Equation Modification:**
-When treatment effects vary over time, standard estimators have inflated variance. Non-stationary methods reduce this:
-$$MDE_{nonstat} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{adjusted}}{n}}$$
-
-Where $\sigma^2_{adjusted} < \sigma^2_{naive}$ by properly modeling temporal dynamics.
-
-**Method:**
-1. Model time-varying treatment effects
-2. Use appropriate weighting or segmentation
-3. Account for temporal correlation in analysis
-
-**Key Findings:**
-- Reduces bias from time-varying effects
-- Improves variance estimation accuracy
-- Particularly relevant for long-running experiments
-
-**Limitations:**
-- Requires modeling assumptions about temporal dynamics
-- More complex analysis
-- May require longer experiments to estimate dynamics
-
----
-
-### 3.5 Sequential Testing Methods: Comparison Table
+### 3.4 Sequential Testing Methods: Comparison Table
 
 | Method | MDE Mechanism | Sample Size Reduction | Monitoring Flexibility | Planning Required | Best Use Case |
 |--------|---------------|----------------------|----------------------|-------------------|---------------|
 | **GST** | Early stopping at $K$ looks | 30-50% | Pre-specified times only | High | Fixed monitoring schedule |
 | **Always Valid** | Continuous stopping | 20-40% | Any time | Low | Automated decisions |
 | **mSPRT** | Mixture likelihood ratio | 20-40% | Any time | Medium | Continuous monitoring |
-| **Non-Stationary** | Time-varying adjustment | Varies | Flexible | Medium | Long-running experiments |
 
 ---
 
