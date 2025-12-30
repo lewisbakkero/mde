@@ -574,39 +574,8 @@ Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
 
 Methods in this section modify the experimental design to either reduce variance, increase effective sample size, or handle interference.
 
-### 4.1 Budget-Split Design for Marketplace Experimentation
 
-**Source:** [Trustworthy Online Marketplace Experimentation with Budget-split Design](https://arxiv.org/abs/2012.08724)
-
-**Core Idea:** Split advertiser budgets rather than users to handle marketplace interference, creates isolated 'worlds' preventing budget cross talk through cannibalisation effects.
-
-**MDE Equation Modification:**
-In standard cluster randomization with $m$ clusters:
-$$MDE_{cluster} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1 + (n_c-1)\rho_{ICC})}{n}}$$
-
-Budget-split eliminates interference:
-$$MDE_{budget-split} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{budget}}{n_{impressions}}}$$
-
-Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\rho_{ICC})$.
-
-**Method:**
-1. Split each advertiser's budget into treatment and control portions
-2. Run separate auctions for each budget portion
-3. Estimate treatment effect from budget-level comparison
-
-**Key Findings:**
-- Eliminates interference from budget competition
-- Provides unbiased estimates in marketplace settings
-- 30-50% MDE reduction vs. cluster randomization
-
-**Limitations:**
-- Requires budget-level tracking infrastructure
-- May not capture all marketplace dynamics
-- Assumes budget is the primary interference mechanism
-
----
-
-### 4.2 Switchback Experiments
+### 4.1 Switchback Experiments
 
 **Source:** 
 - [Design and Analysis of Switchback Experiments](https://arxiv.org/abs/2009.00148)
@@ -652,7 +621,7 @@ $$\sigma^2_{eff} = \sigma^2\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 
 ---
 
-### 4.3 Staggered Rollout Designs
+### 4.2 Staggered Rollout Designs
 
 **Source:** [Optimal Experimental Design for Staggered Rollouts](https://arxiv.org/abs/1911.03764)
 
@@ -687,7 +656,7 @@ Precision-Guided Adaptive Experimentation (PGAE) is the algo they use to estimat
 
 ---
 
-### 4.4 Interleaved Online Testing
+### 4.3 Interleaved Online Testing
 
 **Source:** [Large-scale validation and analysis of interleaved search evaluation](https://www.cs.cornell.edu/~tj/publications/chapelle_etal_12a.pdf)
 
@@ -741,7 +710,7 @@ This weighting mechanism is what allows interleaving to detect subtle difference
 
 ---
 
-### 4.5 Debiased Balanced Interleaving
+### 4.4 Debiased Balanced Interleaving
 
 **Source:** [Debiased balanced interleaving at Amazon Search](https://www.amazon.science/publications/debiased-balanced-interleaving-at-amazon-search)
 
@@ -772,7 +741,7 @@ Where $\sigma^2_{paired,debiased}$ accounts for position bias correction.
 
 ---
 
-### 4.6 Interleaved Online Testing in Large-Scale Systems
+### 4.5 Interleaved Online Testing in Large-Scale Systems
 
 Interleaving is great at picking winners, but it’s historically been bad at telling you how much better a winner is and how to handle dozens of competitors at once.
 
@@ -816,7 +785,7 @@ Apply False Discovery Rate (FDR) controls to ensure that a "lucky" win doesn't r
 
 ---
 
-### 4.7 Adaptive Experimental Design and Counterfactual Inference
+### 4.6 Adaptive Experimental Design and Counterfactual Inference
 
 Traditional A/B tests are great for inference (figuring out why something works) but are expensive because they send 50% of traffic to a potentially inferior version. Adaptive designs (like Bandits) are great for payoff (quickly moving traffic to the winner) but often "break" standard statistical tests.
 
@@ -850,11 +819,10 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 
 ---
 
-### 4.8 Experimental Design Methods: Comparison Table
+### 4.7 Experimental Design Methods: Comparison Table
 
 | Method | MDE Mechanism | MDE Reduction | Complexity | Best Use Case |
 |--------|---------------|---------------|------------|---------------|
-| **Budget-Split** | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
 | **Switchback** | Within-unit comparison | 20-40% | High | Marketplace/interference |
 | **Data-Driven Switchback** | Optimized period design | 20-40% over fixed | High | When historical data available |
 | **Staggered Rollout** | Timing variation | 20-50% | Medium | Gradual launches |
@@ -892,9 +860,9 @@ Methods in this section address the unique challenges of two-sided marketplaces 
 
 ### 5.1 Experimental Design in Marketplaces
 
-**Source:** [Experimental Design in Marketplaces]()
+**Source:** [Experimental Design in Marketplaces](https://projecteuclid.org/journals/statistical-science/advance-publication/Experimental-Design-in-Marketplaces/10.1214/23-STS883.short)
 
-**Core Idea:** Design experiments that account for two-sided interference and equilibrium effects.
+**Core Idea:** To make "launch/no-launch" decisions correctly, they must move away from "naive" A/B testing. By using the right randomization layer and accounting for market dynamics (like price and inventory), platforms can estimate the Total Treatment Effect—what would happen if the feature were rolled out to 100% of the market—rather than just the "within-experiment" difference.
 
 **MDE Equation Modification:**
 With interference, the naive estimator has inflated variance:
@@ -908,15 +876,158 @@ $$MDE_{marketplace} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2
 - Synthetic control for counterfactual construction
 - Hybrid approaches combining multiple techniques
 
+#### Cluster Randomization
+
+**Core Idea:** Randomize at a higher level (markets, regions, time periods) where interference is contained within clusters.
+
+**MDE Equation for Cluster Randomization:**
+$$MDE_{cluster} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1 + (m-1)\rho_{ICC})}{n}}$$
+
+Where:
+- $m$ = average cluster size (users per market/region)
+- $\rho_{ICC}$ = intra-cluster correlation (how similar outcomes are within a cluster)
+- The term $(1 + (m-1)\rho_{ICC})$ is the **design effect**—the variance inflation from clustering
+
+**Key Trade-off:** Cluster randomization eliminates interference bias but increases variance because:
+- Effective sample size is $n_{eff} = n / (1 + (m-1)\rho_{ICC})$
+- With high ICC or large clusters, you may need 2-10x more data
+
+**Optimal Cluster Design:**
+- More clusters with fewer units each → lower variance but harder logistics
+- Fewer clusters with more units → higher variance but simpler implementation
+- Rule of thumb: Aim for $\geq 20$ clusters per arm for reliable inference
+
+#### Synthetic Control Methods
+
+**Core Idea:** When you can only treat a few large units (e.g., entire markets), construct a "synthetic" control by weighting untreated units to match the treated unit's pre-treatment trajectory.
+
+**Method:**
+1. **Pre-treatment matching:** Find weights $w_j$ for control units $j$ such that:
+   $$\sum_j w_j X_j^{pre} \approx X_{treated}^{pre}$$
+   where $X^{pre}$ are pre-treatment outcomes/covariates
+
+2. **Counterfactual construction:** The synthetic control outcome is:
+   $$Y_{synthetic}(t) = \sum_j w_j Y_j(t)$$
+
+3. **Treatment effect estimation:**
+   $$\hat{\tau}(t) = Y_{treated}(t) - Y_{synthetic}(t)$$
+
+**MDE for Synthetic Control:**
+$$MDE_{synth} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{\sigma^2_{pre-match} + \sigma^2_{post}}{T_{post}}}$$
+
+Where:
+- $\sigma^2_{pre-match}$ = residual variance from pre-treatment fit
+- $T_{post}$ = number of post-treatment periods
+- Better pre-treatment fit → lower MDE
+
+**Key Assumptions:**
+- **Parallel trends:** Absent treatment, treated and synthetic control would follow same trajectory
+- **No anticipation:** Treatment doesn't affect pre-treatment outcomes
+- **SUTVA at cluster level:** No interference between clusters
+
+**Synthetic Control vs. Difference-in-Differences:**
+
+| Aspect | Synthetic Control | Difference-in-Differences |
+|--------|------------------|--------------------------|
+| **Control construction** | Weighted combination | Simple average or single unit |
+| **Pre-treatment fit** | Optimized weights | Assumes parallel trends |
+| **Best for** | Few treated units, good donor pool | Many treated units, clear parallel trends |
+| **Inference** | Permutation-based | Standard errors |
+
+#### Budget-Split Design
+
+**Source:** [Trustworthy Online Marketplace Experimentation with Budget-split Design](https://arxiv.org/abs/2012.08724)
+
+**Core Idea:** Split advertiser budgets rather than users to handle marketplace interference. Creates isolated "worlds" preventing budget cross-talk through cannibalization effects. This is a specific application of cluster randomization where the "cluster" is an advertiser's budget.
+
+**MDE Equation Modification:**
+Budget-split eliminates interference:
+$$MDE_{budget-split} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{budget}}{n_{impressions}}}$$
+
+Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\rho_{ICC})$ from standard cluster randomization.
+
+**Method:**
+1. Split each advertiser's budget into treatment and control portions
+2. Run separate auctions for each budget portion
+3. Estimate treatment effect from budget-level comparison
+
+**Key Findings:**
+- Eliminates interference from budget competition
+- Provides unbiased estimates in ad marketplace settings
+- 30-50% MDE reduction vs. standard cluster randomization
+
+**Limitations:**
+- Requires budget-level tracking infrastructure
+- May not capture all marketplace dynamics (e.g., cross-advertiser effects)
+- Assumes budget is the primary interference mechanism
+- Specific to ad marketplaces with budget constraints
+
+# Experimental Design Selection: Budget-Split vs. Switchback
+
+In marketplace experimentation, the choice between **Budget-split** and **Switchback** designs is driven by **Budget Density**. This determines whether a campaign's pacing logic can remain stable when its resources are partitioned.
+
+---
+
+## 1. Defining Budget Density
+Budget Density measures the "liquidity" of a cohort. A cohort must have enough spend to ensure that the Law of Large Numbers smooths out individual auction shocks.
+
+### The Minimum Viable Budget (B_min)
+To maintain pacing stability, each experimental arm (Pot) must meet a minimum spend threshold:
+
+> **B_min = N_min * avg_CPC**
+
+* **N_min**: The minimum number of daily "events" (clicks/wins) required for the pacing multiplier (alpha) to converge (typically 50–100+ depending on variance).
+* **avg_CPC**: The average cost per event in the cohort.
+
+### The Density Condition
+A cohort is viable for a **50/50 Budget-split** only if:
+> **(Total Cohort Budget / 2) > B_min**
+
+---
+
+## 2. Decision Framework
+
+
+
+| Metric Level | Recommended Design | Justification |
+| :--- | :--- | :--- |
+| **High Density** | **Budget-Split** | High power, zero temporal bias, and no carryover effects. Best for high-volume markets. |
+| **Medium Density** | **Biased Split (e.g., 90/10)** | Use if B_min is met by the 90% arm but not the 10% arm. Requires longer runtime for power. |
+| **Low Density** | **Switchback** | Preserves market integrity by giving the algorithm 100% of the budget during active windows. |
+
+---
+
+## 3. When to Move to Switchback
+You should transition a cohort from Budget-split to Switchback if any of the following "Instability Triggers" occur:
+
+1.  **Pacing Jitter:** The pacing multiplier (alpha) shows high hourly variance (>20% fluctuation) in the partitioned pots compared to the historical baseline.
+2.  **Spend Underrun:** The treatment or control arm fails to spend its allocated 50% pot, despite there being available supply (indicating the budget was too small for the bidder to "find" auctions).
+3.  **Lumpy Spend:** More than 30% of the daily budget is consumed in a single auction or within a very short timeframe (e.g., < 5 minutes).
+
+---
+
+## 4. Comparison Summary
+* **Budget-Split:** Isolates by **Space/Budget**. Best for accuracy in "Global" markets.
+* **Switchback:** Isolates by **Time**. Best for stability in "Niche" or "Small" cohorts.
+
+#### Hybrid Approaches
+
+Many platforms combine methods:
+1. **Cluster + CUPED:** Cluster randomization for interference, CUPED for within-cluster variance reduction
+2. **Synthetic Control + Matching:** Match on pre-treatment covariates, then apply synthetic control
+3. **Switchback within Clusters:** Time-based randomization within geographic clusters
+
 **Key Findings:**
 - No single best approach for all marketplaces
 - Design choice depends on interference structure
 - Hybrid approaches often optimal
 
 **Limitations:**
-- Cluster randomization increases variance due to fewer units
-- Synthetic control requires parallel trends assumption
+- Cluster randomization increases variance due to fewer effective units (design effect)
+- Synthetic control requires parallel trends assumption and good donor pool
 - Complex to implement and validate
+- May need domain expertise to define appropriate clusters
+- Trade-off: bias reduction vs. variance inflation
 
 ---
 
@@ -953,9 +1064,21 @@ Where $n_1$ = number of clusters, $n_2$ = individuals per cluster.
 
 ### 5.3 Multi-Armed Bandits with Network Interference
 
-**Source:** "Multi-Armed Bandits with Network Interference"
+In a network of $N$ units with $A$ possible treatments, the total number of configurations is $A^N$. This "curse of dimensionality" makes traditional bandit algorithms (which require exploring every option) impossible to use.
 
-**Core Idea:** Adapt bandit algorithms to handle interference between units.
+**Source:** [Multi-Armed Bandits with Network Interference](https://arxiv.org/abs/2405.18621)
+
+**Core Idea:** To make the problem tractable, the authors assume **Sparse Network Interference**:
+* The reward of unit $i$ is only influenced by its own treatment and the treatments of its immediate neighbors in a graph.
+* The maximum degree of this graph ($d$) is much smaller than $N$.
+
+The paper uses **Discrete Fourier Analysis** to decompose the reward function. By viewing treatment assignments as inputs to a function, they show that:
+* Local interference implies that the reward function has a **sparse representation** in the Fourier domain.
+* The problem can be solved by estimating a limited number of "Fourier coefficients" rather than trying every possible treatment combination.
+
+The paper introduces algorithms for two scenarios:
+* **Known Network:** Uses an "Explore-Then-Commit" strategy to estimate coefficients.
+* **Unknown Network:** Employs **Lasso-based regression** to simultaneously identify the interference structure (who affects whom) and the optimal treatment strategy.
 
 **MDE Equation Modification:**
 Standard bandit regret bound:
@@ -969,6 +1092,28 @@ $$R_T^{network} = O(\sqrt{KT\log T \cdot (1 + \rho_{network})})$$
 2. Modify reward estimates to account for spillovers
 3. Adapt exploration strategy to network topology
 
+
+Treatments are mapped to a discrete space (e.g., $x_i \in \{+1, -1\}$ for binary actions). The Fourier basis functions $\phi_S(x)$ are defined for every subset of units $S \subseteq \{1, \dots, N\}$ as the product of their treatments:
+
+$$\phi_S(x) = \prod_{i \in S} x_i$$
+
+The total reward $f(x)$ is represented as a weighted sum of these basis functions. The weights $\hat{f}(S)$ are the **Fourier coefficients**:
+
+$$f(x) = \sum_{S \subseteq \{1, \dots, N\}} \hat{f}(S) \phi_S(x)$$
+
+Under the **Network Interference** assumption, the complexity collapses:
+* **Locality:** If unit $i$ is only influenced by its neighbors, then $\hat{f}(S) = 0$ for any set $S$ that exceeds the neighborhood radius.
+* **Dimensionality Reduction:** Instead of $2^N$ coefficients, we only need to estimate coefficients for small, local subsets $S$, making the learning process polynomial rather than exponential.
+
+
+| Fourier Component | Terminology | Interpretation |
+| :--- | :--- | :--- |
+| $\hat{f}(\emptyset)$ | Degree 0 | The **baseline reward** (intercept) when no treatments are applied. |
+| $\hat{f}(\{i\})$ | Degree 1 | The **Direct Effect**: How treating unit $i$ changes its own outcome. |
+| $\hat{f}(\{i, j\})$ | Degree 2 | The **Interference Effect**: How the interaction between $i$ and $j$ affects the outcome. |
+| Higher Orders | Degree $> 2$ | Complex, multi-unit spillover effects (usually assumed to be zero in sparse networks). |
+
+
 **Key Findings:**
 - Ignoring interference leads to suboptimal policies
 - Network-aware bandits can improve regret by 30-50%
@@ -979,6 +1124,10 @@ $$R_T^{network} = O(\sqrt{KT\log T \cdot (1 + \rho_{network})})$$
 - Computational complexity scales with network size
 - May not capture all interference mechanisms
 
+
+
+
+
 ---
 
 ### 5.4 Marketplace Methods: Comparison Table
@@ -986,8 +1135,20 @@ $$R_T^{network} = O(\sqrt{KT\log T \cdot (1 + \rho_{network})})$$
 | Method | MDE Mechanism | Interference Handling | Complexity | Best Use Case |
 |--------|---------------|----------------------|------------|---------------|
 | **Cluster Randomization** | Reduce within-cluster interference | Good | Medium | Geographic markets |
+| **Synthetic Control** | Weighted counterfactual construction | Good | Medium-High | Few treated units |
+| **Budget-Split** | Eliminates budget interference | Excellent | High | Ad marketplaces |
 | **Multiple Randomization** | Separate direct/indirect effects | Excellent | High | Effect decomposition |
 | **Network-Aware Bandits** | Model spillovers | Good | High | Social networks |
+
+**Marketplace Design Selection Guide:**
+
+| Scenario | Recommended Method | Why |
+|----------|-------------------|-----|
+| Ad marketplace with budget competition | Budget-Split | Eliminates cannibalization |
+| Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
+| Many small markets | Cluster Randomization | Standard approach, sufficient power |
+| Need to understand spillovers | Multiple Randomization | Decomposes direct/indirect effects |
+| Social network effects | Network-Aware Bandits | Models interference structure |
 
 ---
 
