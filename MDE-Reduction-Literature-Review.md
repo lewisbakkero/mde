@@ -133,7 +133,11 @@ Different ML models offer different tradeoffs:
 
 ### 2.3 Theoretical Foundations for Multi-Covariate Adjustment
 
-**Source:** [From Augmentation to Decomposition: A New Look at CUPED (2023)](https://alexdeng.github.io/public/files/CUPED_2023_Metric_Decomp.pdf)
+**Source:** 
+[From Augmentation to Decomposition: A New Look at CUPED (2023)](https://alexdeng.github.io/public/files/CUPED_2023_Metric_Decomp.pdf)
+
+[Control Using Predictions as Covariates in Switchback
+Experiments](https://www.researchgate.net/profile/Yixin-Tang-5/publication/345698207_Control_Using_Predictions_as_Covariates_in_Switchback_Experiments/links/5fab109b458515078107aa8b/Control-Using-Predictions-as-Covariates-in-Switchback-Experiments.pdf)
 
 **Core Idea:** Provides theoretical framework for optimal covariate selection and multiple covariate extension. Moving beyond simple regression, CUPED (2023) is viewed as an **Efficiency Augmentation**. Given a raw treatment effect estimator $\hat{\Delta}$, we add a mean-zero term to reduce noise without introducing bias.
 
@@ -283,7 +287,7 @@ The efficient variance $\sigma^2_{eff}$ is derived from the **efficient influenc
 
 **Source:** [Variance reduction combining pre-experiment and in-experiment data](https://arxiv.org/abs/2410.09027)
 
-**Core Idea:** Extend CUPED by leveraging both pre-experiment covariates AND in-experiment (concurrent) control group data.
+**Core Idea:** Extend CUPED by leveraging both pre-experiment covariates AND in-experiment (concurrent) control group data. It extends CUPED in a CUPAC-like manner (ML model predicting Y), then takes residuals unexplained by the model and performs a regression using in-experiment covariates.
 
 **MDE Equation Modification:**
 $$MDE_{combined} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-R^2_{combined})}{n}}$$
@@ -304,7 +308,14 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 **Limitations:**
 - Requires careful modeling of correlation structure
 - In-experiment adjustment can introduce bias if not properly implemented
-- More complex to implement and validate
+- More complex to implement and validate; likely less stable for large scale prod environments
+
+| Method | Data Used | Strengths | Weaknesses |
+| :--- | :--- | :--- | :--- |
+| **Naive (Diff-in-Means)** | None | Simple, unbiased. | High variance; requires large samples. |
+| **CUPED** | Linear Pre-experiment | Fast, easy to implement. | Limited by weak historical correlation. |
+| **CUPAC** | ML Pre-experiment | Better at capturing non-linear patterns. | Still only uses "old" data. |
+| **combining pre-experiment and in-experiment** | **Pre + In-experiment** | **Highest variance reduction.** | Requires careful selection of in-experiment variables. |
 
 ---
 
@@ -377,7 +388,7 @@ $$MDE_{GST} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2}{n/ASN_
 
 **Source:** [Always Valid Inference: Continuous Monitoring of A/B Tests](https://pubsonline.informs.org/doi/10.1287/opre.2021.2135)
 
-**Core Idea:** Construct confidence sequences that remain valid under continuous monitoring.
+**Core Idea:** Construct confidence sequences that remain valid under continuous monitoring (no p-hacking).
 
 **MDE Equation Modification:**
 The confidence sequence width at time $t$ is wider than fixed-horizon, but early stopping reduces expected sample size:
