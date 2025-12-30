@@ -576,7 +576,7 @@ Methods in this section modify the experimental design to either reduce variance
 
 **Source:** [Trustworthy Online Marketplace Experimentation with Budget-split Design](https://arxiv.org/abs/2012.08724)
 
-**Core Idea:** Split advertiser budgets rather than users to handle marketplace interference.
+**Core Idea:** Split advertiser budgets rather than users to handle marketplace interference, creates isolated 'worlds' preventing budget cross talk through cannibalisation effects.
 
 **MDE Equation Modification:**
 In standard cluster randomization with $m$ clusters:
@@ -628,17 +628,17 @@ $$\sigma^2_{eff} = \sigma^2\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 
 **Key Findings:**
 
-*Carryover-Autocorrelation Interplay (Hu et al. 2022):*
+*Carryover-Autocorrelation Interplay (Wen et al. 2022):* [Unraveling the Interplay between Carryover Effects and Reward Autocorrelations in Switchback Experiments](https://openreview.net/forum?id=ZwcMZ443BF)
 - Carryover effects and autocorrelation interact non-trivially
 - Optimal period length depends on both factors
 - Longer periods reduce carryover bias but increase variance
 
-*Data-Driven Designs (Xiong et al. 2023):*
+*Data-Driven Designs (Xiong et al. 2023):* [Data-Driven Switchback Experiments: Theoretical Tradeoffs and Empirical Bayes Designs](https://arxiv.org/pdf/2406.06768)
 - Empirical Bayes approaches can optimize switchback patterns
 - Use historical data to estimate carryover and autocorrelation
 - Adaptive designs outperform fixed patterns by 20-40%
 
-*Multiple-Unit Designs (Ye et al. 2023):*
+*Multiple-Unit Designs (Missault et al. 2023):* [Robust and efficient multiple-unit switchback experimentation](https://www.arxiv.org/abs/2506.12654)
 - Randomize across both units and time
 - More robust to model misspecification
 - Better variance-bias trade-off
@@ -654,7 +654,9 @@ $$\sigma^2_{eff} = \sigma^2\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 
 **Source:** [Optimal Experimental Design for Staggered Rollouts](https://arxiv.org/abs/1911.03764)
 
-**Core Idea:** Roll out treatment to units at different times, using timing variation for identification.
+**Core Idea:** Roll out treatment to units at different times, using timing variation for identification. Uses an 'S-shape' rollout where most of the time is spent at equal allocation (this is common practice today).
+
+The theory behind is an extension of diff in diff for staggered deployments (two-way fixed effects) using generalised least squares.
 
 **MDE Equation Modification:**
 With $K$ rollout waves and optimal timing:
@@ -667,23 +669,27 @@ Where $DE$ is the design efficiency (typically 1.2-2.0 for optimal designs), eff
 2. Compare early vs. late adopters
 3. Use difference-in-differences style estimation
 
+Precision-Guided Adaptive Experimentation (PGAE) is the algo they use to estimate variance and compares treated with remaining untreated (if the variance is already small enough, termnates the experiment).
+
 **Key Findings:**
-- Can be more efficient than standard A/B when treatment effects vary over time
+- Can be more efficient than standard A/B when treatment effects vary over time (handling carryover effects better)
 - Optimal designs depend on anticipated effect dynamics
-- 20-50% variance reduction with proper design
+- 20-50% variance reduction with proper design (or same with fewer units)
 
 **Limitations:**
 - Requires rollout flexibility
 - Assumes parallel trends
 - Complex analysis with time-varying effects
 
+
+
 ---
 
 ### 4.4 Interleaved Online Testing
 
-**Source:** Chapelle et al. (2012) - "Large-scale validation and analysis of interleaved search evaluation"
+**Source:** [Large-scale validation and analysis of interleaved search evaluation](https://www.cs.cornell.edu/~tj/publications/chapelle_etal_12a.pdf)
 
-**Core Idea:** Present both treatment and control simultaneously to the same user, using preference signals to detect differences.
+**Core Idea:** Present both treatment and control simultaneously to the same user, using preference signals to detect differences. The user sees a blended list; if they click more on results from Ranker A than Ranker B, Ranker A earns a "win" for that query.
 
 **MDE Equation Modification:**
 In standard A/B testing:
@@ -699,8 +705,30 @@ Where $\sigma^2_{paired} \ll 2\sigma^2$ because within-user variation is elimina
 2. Observe user preference (clicks, engagement) between interleaved results
 3. Use paired statistical test (e.g., sign test, paired t-test)
 
+| Algorithm | Core Mechanism | Key Strength | Known Weakness |
+| :--- | :--- | :--- | :--- |
+| **Balanced Interleaving** | Ensures that at any rank $k$, the top $k$ items in $I$ contain an equal number of items from top of $A$ and $B$. | Deterministic and easy to implement. | Sensitive to "rank bias"; can be "gamed" if one ranker has a very similar but slightly worse list. |
+| **Team Draft Interleaving** | Mimics captains picking teams. Each ranker takes turns picking their highest-ranked item not yet in $I$. | Highly intuitive and robust against most biases. | Can occasionally lead to sub-optimal lists if one ranker has much lower quality documents. |
+| **Probabilistic Interleaving** | Items are selected based on a probability distribution (often a softmax) over the remaining items in each list. | Eliminates deterministic bias and allows for better theoretical "unbiased" properties. | Higher variance than Team Draft; requires more data to reach statistical significance. |
+| **Optimized / ML-based** | Uses historical click data to weight the "credit" assigned to a click based on its position. | Highest sensitivity (requires the least amount of data). | More complex to implement and requires existing baseline data to train. |
+
+
+#### Summary of Click Weighting and Credit Assignment
+
+The paper's click weighting logic centers on the "Skip-Above" heuristic and the concept of "Responsibility." Rather than treating every click as a uniform vote, the authors assign credit by analyzing a click in the context of the documents  the user bypassed. A click on a document $d_i$ at rank $i$ is only considered a strong preference signal if the user explicitly skipped documents at ranks $j < i$. This filters out position bias, where users naturally click the top  result regardless of quality. Mathematically, the preference $S$ for Ranker $A$ over Ranker $B$ for a set of clicks $C$ is calculated by aggregating the relative ranks assigned by each algorithm:
+
+$$S(A, B) = \sum_{d \in C} \text{sgn}(\text{rank}_B(d) - \text{rank}_A(d))$$
+
+In more advanced probabilistic models, the weight is refined using the probability that a specific ranker was "responsible" for the clicked document. This approach ensures that if both rankers suggested the same document  at the same rank, the click is neutralized (assigned zero weight) because it provides no discriminative information. 
+The credit $W$ assigned to Ranker $A$ for a click on document $d$ in the interleaved list $I$ is defined as the  difference in the expected number of times each ranker would have placed that document at that position:
+
+$$W(A|d) = P(d \in I | \text{Ranker } A) - P(d \in I | \text{Ranker } B)$$
+
+This weighting mechanism is what allows interleaving to detect subtle differences in ranking quality with significantly smaller sample sizes than traditional A/B testing.
+
 **Key Findings:**
 - 10-100x more sensitive than traditional A/B tests for ranking systems
+- click weighting based on rank
 - Particularly effective for search, recommendations, ad ranking
 - Each user serves as their own control
 
@@ -713,9 +741,11 @@ Where $\sigma^2_{paired} \ll 2\sigma^2$ because within-user variation is elimina
 
 ### 4.5 Debiased Balanced Interleaving
 
-**Source:** Debiased balanced interleaving at Amazon Search
+**Source:** [Debiased balanced interleaving at Amazon Search](https://www.amazon.science/publications/debiased-balanced-interleaving-at-amazon-search)
 
-**Core Idea:** Address presentation bias in interleaved experiments through debiasing techniques.
+Balanced Interleaving (BI)—the industry standard for years—has a "fidelity" problem. If Ranker A and Ranker B are very similar (e.g., they only differ by one item at the bottom of the list), the merging process can accidentally favor one ranker over the other due to the way it fills positions. This bias is particularly problematic in "mature" search engines
+
+**Core Idea:** Address presentation bias in interleaved experiments through debiasing techniques. For every item in the merged list, they calculate the probability that the item would have appeared at that specific position under different random interleaving outcomes. When a user clicks an item, the credit is weighted by the inverse of this probability ($1/p$).
 
 **MDE Equation Modification:**
 Standard interleaving has presentation bias. Debiased interleaving corrects this:
@@ -740,9 +770,53 @@ Where $\sigma^2_{paired,debiased}$ accounts for position bias correction.
 
 ---
 
-### 4.6 Adaptive Experimental Design and Counterfactual Inference
+### 4.6 Interleaved Online Testing in Large-Scale Systems
 
-**Source:** Adaptive experimental design and counterfactual inference
+Interleaving is great at picking winners, but it’s historically been bad at telling you how much better a winner is and how to handle dozens of competitors at once.
+
+**Source:** [Interleaved online testing in large-scale systems](https://www.amazon.science/publications/interleaved-online-testing-in-large-scale-systems)
+
+**Core Idea:** Extend interleaved testing methodology to large-scale production systems with practical considerations for implementation at scale.
+
+**MDE Equation Modification:**
+Building on standard interleaved testing:
+$$MDE_{large-scale} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{\sigma^2_{paired} \cdot c_{scale}}{n}}$$
+
+Where $c_{scale}$ accounts for system-level factors (latency constraints, cache effects, load balancing) that may slightly inflate variance compared to idealized interleaving. Typically $c_{scale} \approx 1.0-1.2$.
+
+**Method:**
+1. Implement interleaving infrastructure that handles production traffic at scale
+2. Account for system-level effects (caching, latency, load distribution)
+3. Design credit assignment mechanisms for complex multi-stage systems
+4. Handle edge cases: timeouts, partial responses, system failures
+
+Use a Bradley-Terry model (a statistical model often used to rank sports teams based on game outcomes) to create a unified leaderboard of all candidate algorithms.
+
+Apply False Discovery Rate (FDR) controls to ensure that a "lucky" win doesn't result in a bad algorithm being promoted.
+
+**Key Challenges Addressed:**
+- **Latency constraints:** Interleaving must not significantly increase response time
+- **Cache coherence:** Treatment/control may have different cache behavior
+- **Load balancing:** Ensure fair comparison under varying system load
+- **Multi-stage systems:** Credit assignment when multiple components contribute to outcome
+
+**Key Findings:**
+- Interleaving remains highly sensitive (50-90% MDE reduction) even at scale
+- System-level effects can be mitigated with careful engineering
+- Practical implementation requires infrastructure investment
+- Works well for search, recommendations, and ad ranking at production scale
+
+**Limitations:**
+- Requires significant engineering investment for production deployment
+- System-level effects may reduce sensitivity compared to idealized experiments
+- Not all metrics are amenable to interleaved measurement
+- Debugging and monitoring more complex than standard A/B tests
+
+---
+
+### 4.7 Adaptive Experimental Design and Counterfactual Inference
+
+**Source:** [Adaptive experimental design and counterfactual inference](https://arxiv.org/abs/2210.14369)
 
 **Core Idea:** Use adaptive allocation and counterfactual reasoning to improve experimental efficiency.
 
@@ -769,7 +843,7 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 
 ---
 
-### 4.7 Experimental Design Methods: Comparison Table
+### 4.8 Experimental Design Methods: Comparison Table
 
 | Method | MDE Mechanism | MDE Reduction | Complexity | Best Use Case |
 |--------|---------------|---------------|------------|---------------|
@@ -778,8 +852,29 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 | **Data-Driven Switchback** | Optimized period design | 20-40% over fixed | High | When historical data available |
 | **Staggered Rollout** | Timing variation | 20-50% | Medium | Gradual launches |
 | **Interleaved Testing** | Paired comparison | 50-90% | Medium | Ranking/recommendation |
+| **Large-Scale Interleaving** | Paired comparison at scale | 50-90% | High | Production ranking systems |
 | **Debiased Interleaving** | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
 | **Adaptive Design** | Optimal allocation | Varies | High | Heterogeneous effects |
+
+**Interleaving Methods: Detailed Comparison**
+
+The three interleaving approaches (4.4, 4.5, 4.6) represent an evolution from foundational methodology to production-ready systems:
+
+| Aspect | Standard Interleaving (4.4) | Debiased Interleaving (4.5) | Large-Scale Interleaving (4.6) |
+|--------|----------------------------|----------------------------|-------------------------------|
+| **Primary Focus** | Foundational methodology | Bias correction | Production deployment |
+| **Problem Solved** | Reduce MDE via paired comparisons | Fix "fidelity" bias when rankers are similar | Scale to production with many candidates |
+| **Key Innovation** | Skip-Above heuristic, credit by rank | Inverse probability weighting (1/p) | Bradley-Terry model, FDR controls |
+| **Comparison Type** | Binary (A vs B) | Binary (A vs B, unbiased) | Multi-way (A vs B vs C vs ...) |
+| **Output** | Which ranker wins | Which ranker wins (bias-corrected) | Ranked leaderboard + effect magnitudes |
+| **Best For** | General ranking experiments | Mature systems with similar rankers | Large-scale production, many algorithms |
+| **Complexity** | Medium | Medium-High | High |
+| **Infrastructure** | Basic interleaving | + probability computation | + Bradley-Terry, FDR, latency handling |
+
+**When to Use Each:**
+- **Standard (4.4):** Starting point for any ranking experiment; use when rankers are substantially different
+- **Debiased (4.5):** When rankers are similar (e.g., A/B testing incremental improvements to mature search)
+- **Large-Scale (4.6):** When comparing many algorithms simultaneously in production with strict latency/reliability requirements
 
 ---
 
