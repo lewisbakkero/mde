@@ -1246,8 +1246,57 @@ Under the **Network Interference** assumption, the complexity collapses:
 - Computational complexity scales with network size
 - May not capture all interference mechanisms
 
+#### Adversarial Bandits with Interference
 
+**Source:** [Multi-Armed Bandits with Interference: Bridging Causal Inference and Adversarial Bandits](https://arxiv.org/abs/2402.01845) by Jia, Frazier, Kallus (2024)
 
+**Core Idea:** While the sparse network approach above assumes a known/learnable interference structure, this paper takes an **adversarial** perspective—handling worst-case interference without assuming a specific network topology. It bridges causal inference (potential outcomes framework) with adversarial bandits (no distributional assumptions on rewards).
+
+**Key Distinction from Network Approach:**
+
+| Aspect | Sparse Network (above) | Adversarial (this paper) |
+|--------|------------------------|--------------------------|
+| **Interference assumption** | Known sparse graph structure | Arbitrary, worst-case |
+| **Reward model** | Fourier decomposition | Potential outcomes |
+| **Regret benchmark** | Stochastic optimal policy | Best fixed policy in hindsight |
+| **Best for** | Social networks with known structure | Unknown/adversarial interference |
+
+**The Causal Inference Bridge:**
+The paper frames interference using the **potential outcomes** framework from causal inference:
+- Each unit $i$ has potential outcomes $Y_i(a_1, ..., a_N)$ depending on *all* treatment assignments
+- Standard bandits assume $Y_i(a_i)$—no interference (SUTVA)
+- This paper relaxes SUTVA while maintaining tractable regret bounds
+
+**Method:**
+1. **Exposure mapping:** Define how interference propagates (e.g., fraction of treated neighbours)
+2. **Robust policy learning:** Optimise for worst-case interference patterns
+3. **Regret decomposition:** Separate regret from treatment selection vs. interference estimation
+
+**Regret Bound:**
+$R_T^{adversarial} = O(\sqrt{T \cdot K \cdot \log(K)} + T \cdot \epsilon_{interference})$
+
+Where $\epsilon_{interference}$ captures the "price of interference"—additional regret due to spillovers that cannot be eliminated.
+
+**Key Findings:**
+- Provides regret guarantees even under adversarial interference
+- No need to know or estimate network structure
+- Connects bandit literature to causal inference literature
+- Applicable when interference patterns are unknown or adversarial
+
+**Limitations:**
+- More conservative bounds than network-aware approach when structure is known
+- May be overly pessimistic if interference is actually benign
+- Computational complexity for large action spaces
+
+**When to Use Each Approach:**
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Known social network structure | Sparse Network (Fourier) |
+| Unknown interference patterns | Adversarial |
+| Competitive marketplace dynamics | Adversarial |
+| Stable, learnable spillovers | Sparse Network |
+| Worst-case guarantees needed | Adversarial |
 
 
 ---
@@ -1260,7 +1309,8 @@ Under the **Network Interference** assumption, the complexity collapses:
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
 | **Multiple Randomisation** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
-| **Network-Aware Bandits** | 5.3 | Model spillovers | Good | High | Social networks |
+| **Network-Aware Bandits** | 5.3 | Model spillovers (known structure) | Good | High | Social networks |
+| **Adversarial Bandits** | 5.3 | Worst-case interference | Good | High | Unknown interference |
 
 **Marketplace Design Selection Guide:**
 
@@ -1270,7 +1320,8 @@ Under the **Network Interference** assumption, the complexity collapses:
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
 | Many small markets | Cluster Randomisation | Standard approach, sufficient power |
 | Need to understand spillovers | Multiple Randomisation | Decomposes direct/indirect effects |
-| Social network effects | Network-Aware Bandits | Models interference structure |
+| Social network effects (known graph) | Network-Aware Bandits | Models interference structure |
+| Unknown/adversarial interference | Adversarial Bandits | Robust worst-case guarantees |
 
 ---
 
@@ -1359,7 +1410,8 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
 | **Multiple Randomisation** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
-| **Network-Aware Bandits** | 5.3 | Marketplace | Model spillovers | Varies | High | Social networks |
+| **Network-Aware Bandits** | 5.3 | Marketplace | Model spillovers (known) | Varies | High | Social networks |
+| **Adversarial Bandits** | 5.3 | Marketplace | Worst-case interference | Varies | High | Unknown interference |
 | **Cross-Experiment** | 6.1 | Learning | $n \rightarrow n + n_{prior}$ | 20-40% | High | Historical experiments |
 
 ### 7.2 Method Selection Decision Tree
