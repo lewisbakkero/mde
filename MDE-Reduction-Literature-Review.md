@@ -6,6 +6,151 @@ This literature review synthesizes research on methods to reduce the Minimum Det
 
 ---
 
+## Practitioner's Decision Guide
+
+**How to Use This Section:** Start here if you need to choose an MDE reduction method. The academic sections (2-6) provide depth; this section provides actionable guidance.
+
+### When to Use What: Quick Reference Table
+
+| Method | Variance Reduction | Implementation Complexity | Data Requirements | Computational Cost | Best For |
+|--------|-------------------|--------------------------|-------------------|-------------------|----------|
+| **CUPED** | 20-50% | Low (days) | Pre-experiment metric | Negligible | Any experiment with historical data |
+| **CUPAC** | 30-60% | Medium (weeks) | ML training data | Medium (model training) | High-traffic experiments |
+| **Stratification** | 10-30% | Low (days) | Categorical covariates | Negligible | Known heterogeneous segments |
+| **Interleaving** | 50-90% | Medium (weeks) | Paired user sessions | Low | Ranking/recommendation changes |
+| **Switchback** | 20-40% | High (months) | Time-series capability | Low | Marketplace/supply-side experiments |
+| **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Continuous data stream | Low | Experiments needing early decisions |
+| **Budget-Split** | 30-50% vs cluster | High (months) | Budget isolation infra | Medium | Ad marketplace experiments |
+
+### Method Selection by Experiment Type
+
+**Not all methods are interchangeable.** The table below maps experiment types to appropriate methods:
+
+| Experiment Type | Primary Method | Secondary Method | Avoid |
+|-----------------|---------------|------------------|-------|
+| **UI/UX changes** | CUPED | Stratification | Interleaving (not applicable) |
+| **Ranking algorithm** | Interleaving | CUPED (additive) | Switchback (overkill) |
+| **Pricing changes** | Switchback | Cluster randomisation | CUPED alone (interference) |
+| **Ad creative testing** | CUPED | Stratification by advertiser | Budget-split (unnecessary) |
+| **Bidding algorithm** | Budget-split | Switchback | Standard A/B (interference) |
+| **Recommendation model** | Interleaving | CUPED | Cluster (wrong unit) |
+
+### Intuition: Why Methods Work
+
+Understanding *why* a method reduces MDE helps you judge when it will (and won't) work:
+
+| Method | Intuition | When It Works Best | When It Fails |
+|--------|-----------|-------------------|---------------|
+| **CUPED** | "Subtract out predictable noise" — if you know a user typically converts at 2%, deviations from that baseline are more informative than raw conversions | High correlation between pre/post behaviour (ρ > 0.5) | New users, behaviour shifts, long experiments |
+| **Interleaving** | "Same user, same context, different treatment" — within-user comparison eliminates individual differences | Ranking systems where both variants can be shown simultaneously | Non-ranking experiments, user-level treatments |
+| **Switchback** | "Same market, different times" — temporal comparison controls for market-level confounds | Supply-side experiments, marketplace dynamics | Strong time-of-day effects, carryover effects |
+| **Stratification** | "Compare like with like" — reduce variance by grouping similar units | Known heterogeneous segments (e.g., new vs returning users) | Continuous covariates, many small strata |
+| **Sequential** | "Stop early when you know" — don't waste samples after decision is clear | Experiments with clear winners/losers | Subtle effects, need precise estimates |
+
+### Practical Gotchas and Risks
+
+**These issues are rarely discussed in papers but frequently cause problems in practice:**
+
+#### Sample Ratio Mismatch (SRM) Risks
+
+| Method | SRM Risk | Why | Mitigation |
+|--------|----------|-----|------------|
+| **CUPED** | Low | Post-hoc adjustment, doesn't affect assignment | Monitor raw assignment ratios |
+| **CUPAC** | Medium | ML model errors can correlate with treatment | Validate model on holdout, check residual balance |
+| **Stratification** | Medium | Stratification bugs can cause imbalance | Verify stratum sizes match expectations |
+| **Interleaving** | High | Position bias, presentation order effects | Use debiased interleaving (Section 4.4) |
+| **Switchback** | Medium | Time-based confounds can masquerade as SRM | Validate with placebo experiments |
+| **Sequential** | Low | Stopping rules don't affect assignment | Use valid stopping boundaries |
+
+#### Computational and Operational Costs
+
+| Method | Training Cost | Inference Cost | Operational Complexity |
+|--------|--------------|----------------|----------------------|
+| **CUPED** | None | O(n) simple regression | Low — can run post-hoc |
+| **CUPAC** | High (ML model training) | O(n) model inference | Medium — need ML pipeline |
+| **Stratification** | None | O(n) grouping | Low — need stratum definitions |
+| **Interleaving** | None | O(n) per query | High — need real-time blending |
+| **Switchback** | None | O(T) time periods | High — need treatment switching infra |
+| **Sequential** | None | O(k) per analysis | Medium — need monitoring dashboard |
+
+#### Common Failure Modes
+
+1. **CUPED with behaviour shifts:** If a major product change occurs between pre-period and experiment, correlation drops and CUPED provides little benefit. *Mitigation:* Use shorter pre-periods, monitor correlation stability.
+
+2. **Interleaving with position bias:** Naive interleaving systematically favours items shown in certain positions. *Mitigation:* Use Team Draft or debiased methods (Section 4.4).
+
+3. **Switchback with carryover:** If treatment effects persist after switching, estimates are biased. *Mitigation:* Use longer periods, model carryover explicitly.
+
+4. **Sequential testing with peeking:** Looking at results without proper boundaries inflates false positive rates. *Mitigation:* Use mSPRT or always-valid inference, not ad-hoc peeking.
+
+5. **CUPAC model staleness:** ML models trained on old data may not predict current behaviour well. *Mitigation:* Retrain regularly, monitor prediction quality.
+
+### Ratio Metrics: Special Considerations
+
+**Ratio metrics (CTR, conversion rate, revenue per session) are harder to reduce variance for than additive metrics.** Here's why and what to do:
+
+#### Why Ratio Metrics Are Harder
+
+| Issue | Explanation | Impact on MDE |
+|-------|-------------|---------------|
+| **Denominator variance** | Both numerator and denominator vary, increasing total variance | 20-50% higher MDE vs additive |
+| **Heavy tails** | Revenue metrics often have extreme values | Inflated variance, unstable estimates |
+| **Correlation structure** | Numerator and denominator are correlated | Standard CUPED less effective |
+
+#### Recommended Approaches for Ratio Metrics
+
+| Metric Type | Recommended Method | Why | Expected Gain |
+|-------------|-------------------|-----|---------------|
+| **CTR (clicks/impressions)** | Delta method + CUPED on linearised metric | Handles ratio structure properly | 20-40% |
+| **Conversion rate** | CUPED on pre-period conversion rate | High temporal correlation | 30-50% |
+| **Revenue per user** | Winsorisation + CUPED | Controls heavy tails | 40-60% |
+| **Revenue per session** | Stratify by session count + CUPED | Reduces denominator variance | 30-50% |
+
+#### Delta Method for Ratio Metrics
+
+For ratio metric $R = Y/X$, the linearised version is:
+$\tilde{R} = Y - \hat{R} \cdot X$
+
+Where $\hat{R}$ is the overall ratio. Apply CUPED to $\tilde{R}$ rather than $R$ directly.
+
+**Practical tip:** Many experimentation platforms (Statsig, Eppo, internal tools) now support delta method automatically. Check your platform's documentation.
+
+### Method Stacking: What Combines Well
+
+| Base Method | Can Add | Expected Combined Gain | Cannot Add |
+|-------------|---------|----------------------|------------|
+| **CUPED** | Stratification, Sequential | 40-70% total | Another CUPED variant |
+| **Interleaving** | CUPED (for secondary metrics) | 60-95% total | Switchback |
+| **Switchback** | CUPED (within-period) | 30-50% total | Interleaving |
+| **Sequential** | Any variance reduction | Faster + smaller MDE | Another sequential method |
+
+### Decision Flowchart for Practitioners
+
+```
+START: What are you testing?
+│
+├─► Ranking/Recommendation algorithm?
+│   └─► YES → Use INTERLEAVING (50-90% MDE reduction)
+│             Add CUPED for secondary metrics
+│
+├─► Marketplace/pricing experiment?
+│   └─► YES → Is budget interference a concern?
+│             ├─► YES → Use BUDGET-SPLIT or SWITCHBACK
+│             └─► NO  → Use CLUSTER RANDOMISATION
+│
+├─► Standard UI/feature experiment?
+│   └─► YES → Do you have pre-experiment data?
+│             ├─► YES → Use CUPED (start here, 30-50% reduction)
+│             │         Consider CUPAC if you have ML infra
+│             └─► NO  → Use STRATIFICATION (10-30% reduction)
+│
+└─► Need faster decisions?
+    └─► YES → Add SEQUENTIAL TESTING to any of the above
+              Use mSPRT for continuous monitoring
+```
+
+---
+
 ## 1. Introduction
 
 ### 1.1 Background
@@ -1774,34 +1919,74 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 1. **Implement CUPED with pre-experiment ad engagement**
    - Use 7-14 day pre-period
    - Expected: 30-50% MDE reduction
+   - **Gotcha:** Verify correlation stability—if ρ < 0.3, benefit is minimal
+   - **Gotcha:** For ratio metrics (CTR), use delta method linearisation first
 
 2. **Consider Interleaved Testing for ranking changes**
    - If testing ad ranking algorithms
    - Expected: 50-90% MDE reduction
+   - **Gotcha:** Only works for ranking/recommendation systems—not applicable to UI changes
+   - **Gotcha:** Use debiased interleaving to avoid position bias (see Section 4.4)
 
 3. **Stratify by advertiser size/vertical**
    - Reduces between-group variance
    - Expected: 10-20% additional reduction
+   - **Gotcha:** Too many strata (>20) can increase variance; use coarse groupings
 
 ### 8.2 Medium-Term Investments
 
 1. **Build CUPAC infrastructure**
    - ML models for outcome prediction
    - Expected: 10-30% over basic CUPED
+   - **Gotcha:** Model training cost is non-trivial—budget 2-4 weeks engineering time
+   - **Gotcha:** Stale models degrade performance; plan for weekly/monthly retraining
+   - **Gotcha:** Validate model predictions don't correlate with treatment assignment (SRM risk)
 
 2. **Implement sequential testing**
    - mSPRT for continuous monitoring
    - Reduces time-to-decision by 30-50%
+   - **Gotcha:** Ad-hoc peeking without proper boundaries inflates false positives to 20-30%
+   - **Gotcha:** Sequential methods trade off precision for speed—final estimates are wider
 
 3. **Develop switchback capability**
    - For marketplace-level experiments
    - Use data-driven design optimisation
+   - **Gotcha:** Carryover effects bias estimates—use periods ≥2x expected carryover duration
+   - **Gotcha:** Time-of-day and day-of-week effects require careful period design
 
 ### 8.3 Long-Term Platform Capabilities
 
 1. **Budget-split design for ad experiments**
    - Eliminates marketplace interference
    - Gold standard for ad platform experiments
+   - **Gotcha:** Requires significant infrastructure investment (budget isolation, shadow auctions)
+   - **Gotcha:** May not be feasible for all experiment types (e.g., creative testing)
+
+### 8.4 Common Pitfalls to Avoid
+
+| Pitfall | Why It Happens | How to Avoid |
+|---------|---------------|--------------|
+| **Using CUPED for new users** | No pre-experiment data exists | Use stratification or accept higher MDE |
+| **Interleaving for non-ranking experiments** | Misunderstanding method scope | Reserve for ranking/recommendation only |
+| **Ignoring ratio metric structure** | Treating CTR like additive metric | Apply delta method before CUPED |
+| **Peeking without sequential boundaries** | Impatience, pressure for results | Implement proper mSPRT or GST |
+| **CUPAC with stale models** | Neglecting model maintenance | Schedule regular retraining |
+| **Switchback with short periods** | Underestimating carryover | Use periods ≥2x carryover duration |
+| **Over-stratification** | Trying to control too many variables | Limit to 5-10 meaningful strata |
+| **Combining incompatible methods** | Not understanding method assumptions | Consult combinability matrix (7.3) |
+
+### 8.5 Metric-Specific Recommendations
+
+| Metric Type | Primary Challenge | Recommended Approach | Expected MDE Reduction |
+|-------------|------------------|---------------------|----------------------|
+| **CTR** | Ratio metric, denominator variance | Delta method + CUPED | 20-40% |
+| **Conversion rate** | Binary outcome, low base rate | Stratify by propensity + CUPED | 30-50% |
+| **Revenue** | Heavy tails, extreme values | Winsorise at 99th percentile + CUPED | 40-60% |
+| **Revenue per session** | Ratio + heavy tails | Winsorise + delta method + CUPED | 30-50% |
+| **Time on site** | Right-skewed distribution | Log transform + CUPED | 30-50% |
+| **Ad impressions** | Count data, overdispersion | Stratify by user activity + CUPED | 20-40% |
+
+### 8.6 Long-Term Platform Capabilities (continued)
 
 2. **Cross-experiment learning system**
    - Meta-analysis infrastructure
