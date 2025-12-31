@@ -962,16 +962,15 @@ Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\r
 - Assumes budget is the primary interference mechanism
 - Specific to ad marketplaces with budget constraints
 
-# Experimental Design Selection: Budget-Split vs. Switchback
+##### Experimental Design Selection: Budget-Split vs. Switchback
 
 In marketplace experimentation, the choice between **Budget-split** and **Switchback** designs is driven by **Budget Density**. This determines whether a campaign's pacing logic can remain stable when its resources are partitioned.
 
 ---
 
-## 1. Defining Budget Density
+###### 1. Defining Budget Density
 Budget Density measures the "liquidity" of a cohort. A cohort must have enough spend to ensure that the Law of Large Numbers smooths out individual auction shocks.
 
-### The Minimum Viable Budget (B_min)
 To maintain pacing stability, each experimental arm (Pot) must meet a minimum spend threshold:
 
 > **B_min = N_min * avg_CPC**
@@ -979,15 +978,12 @@ To maintain pacing stability, each experimental arm (Pot) must meet a minimum sp
 * **N_min**: The minimum number of daily "events" (clicks/wins) required for the pacing multiplier (alpha) to converge (typically 50–100+ depending on variance).
 * **avg_CPC**: The average cost per event in the cohort.
 
-### The Density Condition
+ The Density Condition
 A cohort is viable for a **50/50 Budget-split** only if:
 > **(Total Cohort Budget / 2) > B_min**
 
----
 
-## 2. Decision Framework
-
-
+###### 2. Decision Framework
 
 | Metric Level | Recommended Design | Justification |
 | :--- | :--- | :--- |
@@ -995,22 +991,21 @@ A cohort is viable for a **50/50 Budget-split** only if:
 | **Medium Density** | **Biased Split (e.g., 90/10)** | Use if B_min is met by the 90% arm but not the 10% arm. Requires longer runtime for power. |
 | **Low Density** | **Switchback** | Preserves market integrity by giving the algorithm 100% of the budget during active windows. |
 
----
 
-## 3. When to Move to Switchback
+
+###### 3. When to Move to Switchback
 You should transition a cohort from Budget-split to Switchback if any of the following "Instability Triggers" occur:
 
 1.  **Pacing Jitter:** The pacing multiplier (alpha) shows high hourly variance (>20% fluctuation) in the partitioned pots compared to the historical baseline.
 2.  **Spend Underrun:** The treatment or control arm fails to spend its allocated 50% pot, despite there being available supply (indicating the budget was too small for the bidder to "find" auctions).
 3.  **Lumpy Spend:** More than 30% of the daily budget is consumed in a single auction or within a very short timeframe (e.g., < 5 minutes).
 
----
 
-## 4. Comparison Summary
+###### 4. Comparison Summary
 * **Budget-Split:** Isolates by **Space/Budget**. Best for accuracy in "Global" markets.
 * **Switchback:** Isolates by **Time**. Best for stability in "Niche" or "Small" cohorts.
 
-#### Hybrid Approaches
+Hybrid Approaches
 
 Many platforms combine methods:
 1. **Cluster + CUPED:** Cluster randomization for interference, CUPED for within-cluster variance reduction
@@ -1029,12 +1024,10 @@ Many platforms combine methods:
 - May need domain expertise to define appropriate clusters
 - Trade-off: bias reduction vs. variance inflation
 
----
-
 ### 5.2 Multiple Randomization Designs
 
 **Source:** 
-- "Measuring direct and Indirect Impacts in a Multi-Sided Marketplace"
+- [Measuring direct and Indirect Impacts in a Multi-Sided Marketplace]()
 - "Multiple Randomization Designs: Estimation and Inference with Interference"
 
 **Core Idea:** Use multiple layers of randomization to identify direct and indirect effects.
