@@ -1215,39 +1215,9 @@ Where $n_{prior}$ is the effective sample size from historical data.
 ---
 
 
-## 7. Case Studies
+## 7. Master Comparison of All Methods
 
-### 7.1 Netflix Case Studies
-
-**Source:** "Improving the Sensitivity of Online Controlled Experiments: Case Studies at Netflix"
-
-**Key Implementations:**
-
-1. **CUPED at Scale:**
-   - 40-50% variance reduction on engagement metrics
-   - Pre-experiment viewing history as covariate
-   - Automated pipeline for covariate selection
-
-2. **Stratification:**
-   - Device type, region, tenure as strata
-   - 10-20% additional variance reduction
-   - Combined with CUPED for multiplicative gains
-
-3. **Metric Selection:**
-   - Chose metrics with lower inherent variance
-   - Developed proxy metrics for long-term outcomes
-   - Balanced sensitivity with business relevance
-
-**Lessons Learned:**
-- Infrastructure investment pays off
-- Combination of methods most effective
-- Metric engineering as important as statistical methods
-
----
-
-## 8. Master Comparison of All Methods
-
-### 8.1 Summary Table: All Methods by MDE Reduction Mechanism
+### 7.1 Summary Table: All Methods by MDE Reduction Mechanism
 
 | Method | Category | MDE Equation Change | Typical MDE Reduction | Complexity | Data Requirements |
 |--------|----------|---------------------|----------------------|------------|-------------------|
@@ -1270,7 +1240,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
 | **Multiple Randomization** | Marketplace | Separate effects | Enables identification | High | Multi-level data |
 | **Cross-Experiment** | Learning | $n \rightarrow n + n_{prior}$ | 20-40% | High | Historical experiments |
 
-### 8.2 Method Selection Decision Tree
+### 7.2 Method Selection Decision Tree
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1304,7 +1274,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.3 Combinability Matrix
+### 7.3 Combinability Matrix
 
 | Method 1 | Method 2 | Combinable? | Expected Combined Benefit |
 |----------|----------|-------------|---------------------------|
@@ -1321,7 +1291,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
 
 ---
 
-## 9. Practical Recommendations for Ads A/B Testing
+## 8. Practical Recommendations for Ads A/B Testing
 
 ### 9.1 Quick Wins (Low Effort, High Impact)
 
@@ -1367,7 +1337,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
 
 ---
 
-## 10. Open Research Questions
+## 9. Open Research Questions
 
 1. **Optimal combination of methods:** How to best combine variance reduction, sequential testing, and design innovations?
 
