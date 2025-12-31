@@ -1143,38 +1143,6 @@ Under the **Network Interference** assumption, the complexity collapses:
 
 ## 6. Adaptive and Learning Methods
 
-### 6.1 Multi-Armed Bandits for A/B Testing
-
-**Source:** [Efficient experimentation: A review of four methods](https://hstalks.com/article/9570/efficient-experimentation-a-review-of-four-methods/)
-
-**Core Idea:** Adaptively allocate traffic to better-performing treatments.
-
-**MDE Equation Modification:**
-Bandits don't directly reduce MDE but reduce regret (opportunity cost):
-$$Regret_{AB} = n \cdot \Delta / 2$$
-$$Regret_{bandit} = O(\sqrt{n \cdot K \cdot \log n})$$
-
-**Method:**
-- Thompson Sampling: Bayesian approach with posterior sampling
-- UCB (Upper Confidence Bound): Optimistic exploration
-- Epsilon-greedy: Random exploration with exploitation
-
-**Key Findings:**
-- Bandits reduce opportunity cost during experimentation
-- But complicate statistical inference
-- Hybrid approaches emerging (explore-then-commit)
-
-**Limitations:**
-- Inference is more complex than standard A/B
-- May not achieve same statistical power
-- Implementation complexity
-
----
-
-### 6.2 Learning Across Experiments and Time
-
-**Source:** "Learning Across Experiments and Time: Tackling Heterogeneity in A/B Testing"
-
 **Core Idea:** Use information from past experiments to improve current ones.
 
 **MDE Equation Modification:**
@@ -1198,15 +1166,6 @@ Where $n_{prior}$ is the effective sample size from historical data.
 - Privacy considerations for data sharing
 - Requires substantial historical data
 
----
-
-### 6.3 Adaptive Methods: Comparison Table
-
-| Method | MDE Mechanism | Primary Benefit | Complexity | Best Use Case |
-|--------|---------------|-----------------|------------|---------------|
-| **Thompson Sampling** | Adaptive allocation | Reduced regret | Medium | Optimization focus |
-| **UCB** | Optimistic exploration | Reduced regret | Medium | Unknown effect sizes |
-| **Cross-Experiment Learning** | Informative priors | 20-40% MDE reduction | High | Mature platforms |
 
 ---
 
