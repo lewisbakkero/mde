@@ -1,4 +1,4 @@
-# Literature Review: Techniques to Reduce Minimum Detectable Effect (MDE) in Ads A/B Test Platforms
+# Quick Literature Review (as of Dec'25): Techniques to Reduce Minimum Detectable Effect (MDE) in A/B Test Platforms
 
 ## Executive Summary
 
@@ -368,15 +368,15 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 
 ### 2.8 Variance Reduction Methods: Comparison Table
 
-| Method | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
-|--------|------------------|---------------------------|------------|-------------------|---------------|
-| **CUPED** | $\sigma^2 \rightarrow \sigma^2(1-\rho^2)$ | 20-50% | Low | Pre-experiment metric | General A/B tests |
-| **CUPAC** | $\sigma^2 \rightarrow \sigma^2(1-\rho_{ML}^2)$ | 30-60% | Medium | ML infrastructure | Complex metrics |
-| **Multi-Covariate** | $\sigma^2 \rightarrow \sigma^2(1-R^2)$ | 30-60% | Medium | Multiple covariates | Rich feature sets |
-| **Stratification** | $\sigma^2 \rightarrow \sigma^2_{within}$ | 10-30% | Low | Stratification vars | Heterogeneous populations |
-| **Temporal Stratification** | $\sigma^2 \rightarrow \sigma^2(1-\eta^2_{temporal})$ | 10-30% | Medium | Time-series data | Non-stationary environments |
-| **Semiparametric** | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator | Theoretical benchmark |
-| **Pre+In Combined** | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + concurrent control | Volatile environments |
+| Method | Section | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
+|--------|---------|------------------|---------------------------|------------|-------------------|---------------|
+| **CUPED** | 2.1 | $\sigma^2 \rightarrow \sigma^2(1-\rho^2)$ | 20-50% | Low | Pre-experiment metric | General A/B tests |
+| **CUPAC** | 2.2 | $\sigma^2 \rightarrow \sigma^2(1-\rho_{ML}^2)$ | 30-60% | Medium | ML infrastructure | Complex metrics |
+| **Multi-Covariate** | 2.3 | $\sigma^2 \rightarrow \sigma^2(1-R^2)$ | 30-60% | Medium | Multiple covariates | Rich feature sets |
+| **Stratification** | 2.4 | $\sigma^2 \rightarrow \sigma^2_{within}$ | 10-30% | Low | Stratification vars | Heterogeneous populations |
+| **Temporal Stratification** | 2.5 | $\sigma^2 \rightarrow \sigma^2(1-\eta^2_{temporal})$ | 10-30% | Medium | Time-series data | Non-stationary environments |
+| **Semiparametric** | 2.6 | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator | Theoretical benchmark |
+| **Pre+In Combined** | 2.7 | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + concurrent control | Volatile environments |
 
 **Combining Variance Reduction Methods:**
 
@@ -619,12 +619,12 @@ If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be
 
 ### 3.5 Sequential Testing Methods: Comparison Table
 
-| Method | MDE Mechanism | Sample Size Reduction | Monitoring Flexibility | Planning Required | Best Use Case |
-|--------|---------------|----------------------|----------------------|-------------------|---------------|
-| **GST** | Early stopping at $K$ looks | 30-50% | Pre-specified times only | High | Fixed monitoring schedule |
-| **Always Valid** | Continuous stopping | 20-40% | Any time | Low | Automated decisions |
-| **mSPRT** | Mixture likelihood ratio | 20-40% | Any time | Medium | Continuous monitoring |
-| **Futility Stopping** | Stop when effect unlikely | 20-40% (for null effects) | At interim analyses | Medium | High experiment volume |
+| Method | Section | MDE Mechanism | Sample Size Reduction | Monitoring Flexibility | Planning Required | Best Use Case |
+|--------|---------|---------------|----------------------|----------------------|-------------------|---------------|
+| **GST** | 3.1 | Early stopping at $K$ looks | 30-50% | Pre-specified times only | High | Fixed monitoring schedule |
+| **Always Valid** | 3.2 | Continuous stopping | 20-40% | Any time | Low | Automated decisions |
+| **mSPRT** | 3.3 | Mixture likelihood ratio | 20-40% | Any time | Medium | Continuous monitoring |
+| **Futility Stopping** | 3.4 | Stop when effect unlikely | 20-40% (for null effects) | At interim analyses | Medium | High experiment volume |
 
 ### 3.6 Comparison of Early Stopping Methods
 
@@ -894,15 +894,14 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 
 ### 4.7 Experimental Design Methods: Comparison Table
 
-| Method | MDE Mechanism | MDE Reduction | Complexity | Best Use Case |
-|--------|---------------|---------------|------------|---------------|
-| **Switchback** | Within-unit comparison | 20-40% | High | Marketplace/interference |
-| **Data-Driven Switchback** | Optimized period design | 20-40% over fixed | High | When historical data available |
-| **Staggered Rollout** | Timing variation | 20-50% | Medium | Gradual launches |
-| **Interleaved Testing** | Paired comparison | 50-90% | Medium | Ranking/recommendation |
-| **Large-Scale Interleaving** | Paired comparison at scale | 50-90% | High | Production ranking systems |
-| **Debiased Interleaving** | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
-| **Adaptive Design** | Optimal allocation | Varies | High | Heterogeneous effects |
+| Method | Section | MDE Mechanism | MDE Reduction | Complexity | Best Use Case |
+|--------|---------|---------------|---------------|------------|---------------|
+| **Switchback** | 4.1 | Within-unit comparison | 20-40% | High | Marketplace/interference |
+| **Staggered Rollout** | 4.2 | Timing variation | 20-50% | Medium | Gradual launches |
+| **Interleaved Testing** | 4.3 | Paired comparison | 50-90% | Medium | Ranking/recommendation |
+| **Debiased Interleaving** | 4.4 | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
+| **Large-Scale Interleaving** | 4.5 | Paired comparison at scale | 50-90% | High | Production ranking systems |
+| **Adaptive Design** | 4.6 | Optimal allocation | Varies | High | Heterogeneous effects |
 
 **Interleaving Methods: Detailed Comparison**
 
@@ -1192,13 +1191,13 @@ Under the **Network Interference** assumption, the complexity collapses:
 
 ### 5.4 Marketplace Methods: Comparison Table
 
-| Method | MDE Mechanism | Interference Handling | Complexity | Best Use Case |
-|--------|---------------|----------------------|------------|---------------|
-| **Cluster Randomization** | Reduce within-cluster interference | Good | Medium | Geographic markets |
-| **Synthetic Control** | Weighted counterfactual construction | Good | Medium-High | Few treated units |
-| **Budget-Split** | Eliminates budget interference | Excellent | High | Ad marketplaces |
-| **Multiple Randomization** | Separate direct/indirect effects | Excellent | High | Effect decomposition |
-| **Network-Aware Bandits** | Model spillovers | Good | High | Social networks |
+| Method | Section | MDE Mechanism | Interference Handling | Complexity | Best Use Case |
+|--------|---------|---------------|----------------------|------------|---------------|
+| **Cluster Randomization** | 5.1 | Reduce within-cluster interference | Good | Medium | Geographic markets |
+| **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
+| **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
+| **Multiple Randomization** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
+| **Network-Aware Bandits** | 5.3 | Model spillovers | Good | High | Social networks |
 
 **Marketplace Design Selection Guide:**
 
@@ -1273,26 +1272,31 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 
 ### 7.1 Summary Table: All Methods by MDE Reduction Mechanism
 
-| Method | Category | MDE Equation Change | Typical MDE Reduction | Complexity | Data Requirements |
-|--------|----------|---------------------|----------------------|------------|-------------------|
-| **CUPED** | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho^2)$ | 20-50% | Low | Pre-experiment data |
-| **CUPAC** | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho_{ML}^2)$ | 30-60% | Medium | ML infrastructure |
-| **Multi-Covariate** | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2)$ | 30-60% | Medium | Multiple covariates |
-| **Stratification** | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{within}$ | 10-30% | Low | Stratification vars |
-| **Pre+In Combined** | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + in-experiment |
-| **GST** | Sequential Testing | $n \rightarrow n \cdot ASN_{ratio}$ | 30-50% (sample) | Medium | Pre-planned schedule |
-| **Always Valid** | Sequential Testing | Early stopping any time | 20-40% (sample) | Medium | Continuous data |
-| **mSPRT** | Sequential Testing | $n \rightarrow E[n_{stop}]$ | 20-40% (sample) | Medium | Continuous data |
-| **Non-Stationary** | Sequential Testing | Time-varying adjustment | Varies | Medium | Temporal modeling |
-| **Budget-Split** | Design Innovation | Eliminates interference | 30-50% vs cluster | High | Budget data |
-| **Switchback** | Design Innovation | Within-unit comparison | 20-40% | High | Time-series data |
-| **Data-Driven Switchback** | Design Innovation | Optimized periods | 20-40% over fixed | High | Historical data |
-| **Staggered Rollout** | Design Innovation | $n \rightarrow n \cdot DE$ | 20-50% | Medium | Rollout flexibility |
-| **Interleaved Testing** | Design Innovation | $2\sigma^2 \rightarrow \sigma^2_{paired}$ | 50-90% | Medium | Ranking systems |
-| **Debiased Interleaving** | Design Innovation | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
-| **Adaptive Design** | Design Innovation | Optimal allocation | Varies | High | Heterogentic effects |
-| **Multiple Randomization** | Marketplace | Separate effects | Enables identification | High | Multi-level data |
-| **Cross-Experiment** | Learning | $n \rightarrow n + n_{prior}$ | 20-40% | High | Historical experiments |
+| Method | Section | Category | MDE Equation Change | Typical MDE Reduction | Complexity | Data Requirements |
+|--------|---------|----------|---------------------|----------------------|------------|-------------------|
+| **CUPED** | 2.1 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho^2)$ | 20-50% | Low | Pre-experiment data |
+| **CUPAC** | 2.2 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho_{ML}^2)$ | 30-60% | Medium | ML infrastructure |
+| **Multi-Covariate** | 2.3 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2)$ | 30-60% | Medium | Multiple covariates |
+| **Stratification** | 2.4 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{within}$ | 10-30% | Low | Stratification vars |
+| **Temporal Stratification** | 2.5 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\eta^2_{temporal})$ | 10-30% | Medium | Time-series data |
+| **Semiparametric** | 2.6 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator |
+| **Pre+In Combined** | 2.7 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + in-experiment |
+| **GST** | 3.1 | Sequential Testing | $n \rightarrow n \cdot ASN_{ratio}$ | 30-50% (sample) | Medium | Pre-planned schedule |
+| **Always Valid** | 3.2 | Sequential Testing | Early stopping any time | 20-40% (sample) | Medium | Continuous data |
+| **mSPRT** | 3.3 | Sequential Testing | $n \rightarrow E[n_{stop}]$ | 20-40% (sample) | Medium | Continuous data |
+| **Futility Stopping** | 3.4 | Sequential Testing | Stop when effect unlikely | 20-40% (for null) | Medium | Interim analyses |
+| **Switchback** | 4.1 | Design Innovation | Within-unit comparison | 20-40% | High | Time-series data |
+| **Staggered Rollout** | 4.2 | Design Innovation | $n \rightarrow n \cdot DE$ | 20-50% | Medium | Rollout flexibility |
+| **Interleaved Testing** | 4.3 | Design Innovation | $2\sigma^2 \rightarrow \sigma^2_{paired}$ | 50-90% | Medium | Ranking systems |
+| **Debiased Interleaving** | 4.4 | Design Innovation | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
+| **Large-Scale Interleaving** | 4.5 | Design Innovation | Paired comparison at scale | 50-90% | High | Production ranking |
+| **Adaptive Design** | 4.6 | Design Innovation | Optimal allocation | Varies | High | Heterogeneous effects |
+| **Cluster Randomization** | 5.1 | Marketplace | Reduce interference | Varies | Medium | Geographic markets |
+| **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
+| **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
+| **Multiple Randomization** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
+| **Network-Aware Bandits** | 5.3 | Marketplace | Model spillovers | Varies | High | Social networks |
+| **Cross-Experiment** | 6.1 | Learning | $n \rightarrow n + n_{prior}$ | 20-40% | High | Historical experiments |
 
 ### 7.2 Method Selection Decision Tree
 
@@ -1303,26 +1307,35 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 │                                                                             │
 │  1. What type of system are you testing?                                    │
 │     ├─ Ranking/Recommendation → Consider INTERLEAVED TESTING (50-90% MDE↓)  │
+│     │   ├─ Similar rankers? → Debiased Interleaving (4.4)                   │
+│     │   └─ Many algorithms? → Large-Scale Interleaving (4.5)                │
 │     └─ Other → Continue to step 2                                           │
 │                                                                             │
 │  2. Do you have pre-experiment data?                                        │
 │     ├─ Yes → Start with CUPED/CUPAC (20-60% MDE↓)                           │
+│     │   └─ Also have in-experiment control? → Pre+In Combined (2.7)         │
 │     └─ No  → Consider stratification (10-30% MDE↓)                          │
 │                                                                             │
 │  3. Is there interference between units?                                    │
 │     ├─ Yes → Consider:                                                      │
-│     │        ├─ Budget-split (ad marketplaces)                              │
-│     │        ├─ Switchback (time-based interference)                        │
-│     │        ├─ Cluster randomization (geographic)                          │
-│     │        └─ Multiple randomization (effect decomposition)               │
+│     │        ├─ Budget-split (ad marketplaces, 5.1)                         │
+│     │        ├─ Switchback (time-based interference, 4.1)                   │
+│     │        ├─ Cluster randomization (geographic, 5.1)                     │
+│     │        ├─ Multiple randomization (effect decomposition, 5.2)          │
+│     │        └─ Network-aware bandits (social effects, 5.3)                 │
 │     └─ No  → Standard randomization + variance reduction                    │
 │                                                                             │
 │  4. Do you need continuous monitoring?                                      │
-│     ├─ Yes → mSPRT or Always Valid Inference                                │
-│     └─ No  → GST or fixed-horizon                                           │
+│     ├─ Yes → mSPRT (3.3) or Always Valid Inference (3.2)                    │
+│     │   └─ High experiment volume? → Add Futility Stopping (3.4)            │
+│     └─ No  → GST (3.1) or fixed-horizon                                     │
 │                                                                             │
-│  5. Do you have historical experiment data?                                 │
-│     ├─ Yes → Leverage cross-experiment learning (20-40% MDE↓)               │
+│  5. Are treatment effects non-stationary over time?                         │
+│     ├─ Yes → Temporal Stratification (2.5)                                  │
+│     └─ No  → Standard analysis                                              │
+│                                                                             │
+│  6. Do you have historical experiment data?                                 │
+│     ├─ Yes → Leverage cross-experiment learning (6.1, 20-40% MDE↓)          │
 │     └─ No  → Build experiment database for future                           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1333,21 +1346,27 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | Method 1 | Method 2 | Combinable? | Expected Combined Benefit |
 |----------|----------|-------------|---------------------------|
 | CUPED | Stratification | ✓ | Multiplicative (40-70% total) |
+| CUPED | Temporal Stratification | ✓ | Multiplicative (handles time + individual variance) |
 | CUPED | GST | ✓ | Apply CUPED at each look |
 | CUPED | Switchback | ✓ | Use pre-period as covariate |
 | CUPED | Interleaved | ✓ | Both reduce variance |
 | Pre+In Combined | Stratification | ✓ | Apply within strata |
 | Pre+In Combined | Sequential | ✓ | Apply at each analysis |
+| Stratification | Temporal Stratification | ~ | Overlapping variance components |
 | Stratification | GST | ✓ | Stratify then sequential |
 | GST | mSPRT | ✗ | Choose one approach |
+| GST | Futility Stopping | ✓ | Efficacy + futility boundaries |
+| mSPRT | Futility Stopping | ✓ | Add futility to continuous monitoring |
 | Switchback | Budget-Split | ~ | Depends on context |
 | Interleaved | CUPED | ✓ | Additional variance reduction |
+| Cross-Experiment | CUPED | ✓ | Prior + covariate adjustment |
+| Cross-Experiment | Sequential | ✓ | Informative prior + early stopping |
 
 ---
 
 ## 8. Practical Recommendations for Ads A/B Testing
 
-### 7.1 Quick Wins (Low Effort, High Impact)
+### 8.1 Quick Wins (Low Effort, High Impact)
 
 1. **Implement CUPED with pre-experiment ad engagement**
    - Use 7-14 day pre-period
@@ -1361,7 +1380,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
    - Reduces between-group variance
    - Expected: 10-20% additional reduction
 
-### 7.2 Medium-Term Investments
+### 8.2 Medium-Term Investments
 
 1. **Build CUPAC infrastructure**
    - ML models for outcome prediction
@@ -1375,7 +1394,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
    - For marketplace-level experiments
    - Use data-driven design optimization
 
-### 7.3 Long-Term Platform Capabilities
+### 8.3 Long-Term Platform Capabilities
 
 1. **Budget-split design for ad experiments**
    - Eliminates marketplace interference
