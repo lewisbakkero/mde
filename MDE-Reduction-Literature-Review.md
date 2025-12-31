@@ -10,17 +10,80 @@ This literature review synthesizes research on methods to reduce the Minimum Det
 
 **How to Use This Section:** Start here if you need to choose an MDE reduction method. The academic sections (2-6) provide depth; this section provides actionable guidance.
 
+### How MDE Reduction Methods Stack Together
+
+Methods from different categories can be combined. Variance reduction lowers the base MDE; sequential testing lets you stop once that lowered threshold is met.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    METHOD STACKING: How Layers Interact                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  LAYER 1: VARIANCE REDUCTION (reduces σ²)                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  CUPED/CUPAC → Stratification → Winsorisation (for heavy tails)     │    │
+│  │  These are ADDITIVE: apply multiple for multiplicative gains        │    │
+│  │  Result: σ²_reduced = σ² × (1-ρ²) × (1-η²_strat) × ...              │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                              ↓                                              │
+│  LAYER 2: DESIGN INNOVATION (changes experiment structure)                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Interleaving (ranking) │ Switchback (marketplace) │ Staggered      │    │
+│  │  These are ALTERNATIVES: choose one based on experiment type        │    │
+│  │  Result: Further variance reduction OR interference handling        │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                              ↓                                              │
+│  LAYER 3: SEQUENTIAL TESTING (enables early stopping)                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  mSPRT │ Always Valid │ GST                                         │    │
+│  │  Applied ON TOP of variance reduction                               │    │
+│  │  Result: Stop early once reduced MDE threshold is crossed           │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+│  COMBINED EFFECT:                                                           │
+│  MDE_final = MDE_baseline × VR_factor × Design_factor × Seq_factor          │
+│  Example: 0.5 (CUPED) × 0.8 (stratification) × 0.7 (early stop) = 0.28      │
+│           → 72% total MDE reduction                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### When to Use What: Quick Reference Table
 
-| Method | Variance Reduction | Implementation Complexity | Data Requirements | Computational Cost | Best For |
-|--------|-------------------|--------------------------|-------------------|-------------------|----------|
-| **CUPED** | 20-50% | Low (days) | Pre-experiment metric | Negligible | Any experiment with historical data |
-| **CUPAC** | 30-60% | Medium (weeks) | ML training data | Medium (model training) | High-traffic experiments |
-| **Stratification** | 10-30% | Low (days) | Categorical covariates | Negligible | Known heterogeneous segments |
-| **Interleaving** | 50-90% | Medium (weeks) | Paired user sessions | Low | Ranking/recommendation changes |
-| **Switchback** | 20-40% | High (months) | Time-series capability | Low | Marketplace/supply-side experiments |
-| **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Continuous data stream | Low | Experiments needing early decisions |
-| **Budget-Split** | 30-50% vs cluster | High (months) | Budget isolation infra | Medium | Ad marketplace experiments |
+| Method | Variance Reduction | Build Complexity | Maintenance Complexity | Data Requirements | Best For |
+|--------|-------------------|------------------|----------------------|-------------------|----------|
+| **CUPED** | 20-50% | Low (days) | Low | Pre-experiment metric | Any experiment with historical data |
+| **CUPAC** | 10-30% over CUPED* | Medium (weeks) | **High** (model drift) | ML training data | When linear CUPED R² < 0.5 |
+| **Deep-CUPED (Neural)** | 10-20% over CUPAC | High (months) | **Very High** | Neural network infra | Maximum variance reduction needed |
+| **Stratification** | 10-30% | Low (days) | Low | Categorical covariates | Known heterogeneous segments |
+| **Winsorisation (Heavy-tails)** | 30-60% | Low (days) | Low | Tail diagnostics | Revenue/monetary metrics |
+| **Interleaving** | 50-90% | Medium (weeks) | **High** (UI brittleness) | Paired user sessions | Ranking/recommendation changes |
+| **Switchback** | 20-40% | High (months) | Medium | Time-series capability | Marketplace/supply-side experiments |
+| **Staggered Rollout + Modern DiD** | 20-50% | Medium (weeks) | Medium | Rollout flexibility | Phased feature launches |
+| **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Medium | Continuous data stream | Experiments needing early decisions |
+| **Budget-Split** | 30-50% vs cluster | High (months) | High | Budget isolation infra | Ad marketplace experiments |
+
+*CUPAC gain over CUPED is proportional to unexplained variance: $\Delta R^2 = R^2_{ML} - R^2_{linear}$. If linear CUPED already achieves R² > 0.7, ML overhead provides minimal marginal gain.
+
+### Practicality Filter: When to Do Nothing
+
+**Before investing in MDE reduction, ask:**
+
+| Question | If YES | If NO |
+|----------|--------|-------|
+| Is current MDE > 5% of baseline metric? | Consider MDE reduction | You're likely already well-powered |
+| Do you run >50 experiments/year on this metric? | Investment amortises well | One-off optimisation may not be worth it |
+| Is experiment duration a binding constraint? | Sequential testing valuable | Focus on variance reduction |
+| Are you frequently underpowered for real effects? | Prioritise MDE reduction | Current setup may be adequate |
+| Is the metric stable week-over-week? | CUPED will work well | Consider stratification or surrogates |
+
+**When to skip MDE reduction entirely:**
+- Current MDE < 2% of baseline (already highly sensitive)
+- Experiment traffic is abundant and duration is not constrained
+- Metric has low week-over-week correlation (ρ < 0.3) — CUPED won't help much
+- One-off experiment with no reuse of infrastructure
+
+**Rule of thumb:** If your current setup detects effects you care about within acceptable timeframes, additional MDE reduction is over-engineering.
 
 ### Method Selection by Experiment Type
 
@@ -33,6 +96,8 @@ This literature review synthesizes research on methods to reduce the Minimum Det
 | **Pricing changes** | Switchback | Cluster randomisation | CUPED alone (interference) |
 | **Ad creative testing** | CUPED | Stratification by advertiser | Budget-split (unnecessary) |
 | **Bidding algorithm** | Budget-split | Switchback | Standard A/B (interference) |
+| **Revenue metrics** | Winsorisation + CUPED | EVT-based robust | Raw metrics (heavy tails) |
+| **Phased rollout** | Modern DiD (Callaway-Sant'Anna) | Stacked DiD | TWFE (biased with heterogeneity) |
 | **Recommendation model** | Interleaving | CUPED | Cluster (wrong unit) |
 
 ### Intuition: Why Methods Work
@@ -87,6 +152,8 @@ Understanding *why* a method reduces MDE helps you judge when it will (and won't
 
 ### Ratio Metrics: Special Considerations
 
+**Source:** [Variance Reduction for Ratio Metrics](https://medium.com/airbnb-engineering/variance-reduction-for-ratio-metrics-20c2d385f95f) by Chen, Liu, and Xu (Airbnb, 2021)
+
 **Ratio metrics (CTR, conversion rate, revenue per session) are harder to reduce variance for than additive metrics.** Here's why and what to do:
 
 #### Why Ratio Metrics Are Harder
@@ -96,6 +163,39 @@ Understanding *why* a method reduces MDE helps you judge when it will (and won't
 | **Denominator variance** | Both numerator and denominator vary, increasing total variance | 20-50% higher MDE vs additive |
 | **Heavy tails** | Revenue metrics often have extreme values | Inflated variance, unstable estimates |
 | **Correlation structure** | Numerator and denominator are correlated | Standard CUPED less effective |
+| **Non-linearity** | Ratio of means ≠ mean of ratios (Jensen's inequality) | Biased naive estimates |
+
+#### The Linearisation Approach (Delta Method)
+
+The key insight from Airbnb's work: transform ratio metrics into additive metrics via linearisation, then apply standard CUPED.
+
+**For ratio metric $R = Y/X$ (e.g., revenue per booking where Y = revenue, X = bookings):**
+
+1. **Compute overall ratio:** $\hat{R} = \bar{Y}/\bar{X}$ (pooled across treatment and control)
+
+2. **Linearise:** Transform each user's contribution to:
+   $\tilde{R}_i = Y_i - \hat{R} \cdot X_i$
+   
+   This is the user's "residual" — how much their revenue deviates from what we'd expect given their booking count.
+
+3. **Apply CUPED:** Use pre-experiment $\tilde{R}_{i,pre}$ as covariate for post-experiment $\tilde{R}_{i,post}$
+
+4. **Estimate treatment effect:** 
+   $\hat{\tau} = \frac{\bar{\tilde{R}}_{treatment} - \bar{\tilde{R}}_{control}}{\bar{X}}$
+
+**Why this works:** The linearised metric $\tilde{R}$ is additive (sum of independent user contributions), so CUPED's variance reduction applies directly. The denominator variance is absorbed into the linearisation.
+
+#### Variance Reduction Formula for Ratio Metrics
+
+After linearisation + CUPED:
+$Var(\hat{\tau}_{ratio}) = \frac{Var(\tilde{R})(1 - \rho^2)}{n \cdot \bar{X}^2}$
+
+Where:
+- $\rho$ = correlation between pre and post linearised metrics
+- $\bar{X}$ = average denominator (e.g., bookings per user)
+- The $(1 - \rho^2)$ factor is the CUPED variance reduction
+
+**Key finding from Airbnb:** Linearisation alone provides 10-30% variance reduction for ratio metrics; combined with CUPED, total reduction reaches 40-60%.
 
 #### Recommended Approaches for Ratio Metrics
 
@@ -103,15 +203,18 @@ Understanding *why* a method reduces MDE helps you judge when it will (and won't
 |-------------|-------------------|-----|---------------|
 | **CTR (clicks/impressions)** | Delta method + CUPED on linearised metric | Handles ratio structure properly | 20-40% |
 | **Conversion rate** | CUPED on pre-period conversion rate | High temporal correlation | 30-50% |
-| **Revenue per user** | Winsorisation + CUPED | Controls heavy tails | 40-60% |
-| **Revenue per session** | Stratify by session count + CUPED | Reduces denominator variance | 30-50% |
+| **Revenue per user** | Winsorisation + linearisation + CUPED | Controls heavy tails + ratio structure | 40-60% |
+| **Revenue per session** | Stratify by session count + linearisation + CUPED | Reduces denominator variance | 30-50% |
+| **Average order value** | Linearisation + CUPED | Standard ratio metric approach | 30-50% |
 
-#### Delta Method for Ratio Metrics
+#### Common Mistakes with Ratio Metrics
 
-For ratio metric $R = Y/X$, the linearised version is:
-$\tilde{R} = Y - \hat{R} \cdot X$
-
-Where $\hat{R}$ is the overall ratio. Apply CUPED to $\tilde{R}$ rather than $R$ directly.
+| Mistake | Why It's Wrong | Correct Approach |
+|---------|---------------|------------------|
+| Applying CUPED directly to ratio | Ignores denominator variance | Linearise first, then CUPED |
+| Using user-level ratios | High variance from users with few events | Use linearised metric |
+| Ignoring correlation between Y and X | Underestimates variance | Delta method accounts for this |
+| Winsorising the ratio | Can introduce bias | Winsorise numerator and denominator separately, then linearise |
 
 **Practical tip:** Many experimentation platforms (Statsig, Eppo, internal tools) now support delta method automatically. Check your platform's documentation.
 
@@ -127,11 +230,22 @@ Where $\hat{R}$ is the overall ratio. Apply CUPED to $\tilde{R}$ rather than $R$
 ### Decision Flowchart for Practitioners
 
 ```
-START: What are you testing?
+START: Do you need MDE reduction at all?
+│
+├─► Is current MDE > 5% of baseline metric?
+│   └─► NO  → STOP. You're likely already well-powered.
+│             Over-engineering MDE reduction wastes resources.
+│
+├─► Is experiment duration a binding constraint?
+│   └─► NO  → Consider if variance reduction is worth the investment.
+│             More traffic may be simpler than new methods.
+│
+PROCEED: What are you testing?
 │
 ├─► Ranking/Recommendation algorithm?
 │   └─► YES → Use INTERLEAVING (50-90% MDE reduction)
 │             Add CUPED for secondary metrics
+│             ⚠️ High maintenance: interleaving code is brittle during UI changes
 │
 ├─► Marketplace/pricing experiment?
 │   └─► YES → Is budget interference a concern?
@@ -141,7 +255,9 @@ START: What are you testing?
 ├─► Standard UI/feature experiment?
 │   └─► YES → Do you have pre-experiment data?
 │             ├─► YES → Use CUPED (start here, 30-50% reduction)
-│             │         Consider CUPAC if you have ML infra
+│             │         Is linear CUPED R² < 0.5?
+│             │         ├─► YES → Consider CUPAC (but weigh maintenance cost)
+│             │         └─► NO  → Stick with CUPED; ML adds little value
 │             └─► NO  → Use STRATIFICATION (10-30% reduction)
 │
 └─► Need faster decisions?
@@ -194,6 +310,12 @@ All methods in this section reduce MDE by decreasing the variance term $\sigma^2
 
 **Core Idea:** Use pre-experiment covariate data to reduce variance through regression adjustment.
 
+**Intuition: "Subtract out predictable noise"**
+If you know a user typically converts at 2%, then observing them convert at 2.1% is more informative than observing a raw 2.1% conversion. CUPED exploits this by using pre-experiment behaviour to predict what *would have happened anyway*, then measuring deviations from that prediction. The treatment effect signal remains; the individual-level noise is removed.
+
+*When it works:* High correlation between pre/post behaviour (ρ > 0.5). Stable metrics like DAU, revenue per user.
+*When it fails:* New users (no history), behaviour shifts between pre-period and experiment, very long experiments where pre-period becomes stale.
+
 **MDE Equation Modification:**
 $$MDE_{CUPED} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-\rho^2)}{n}}$$
 
@@ -223,6 +345,23 @@ Where $\theta = \frac{Cov(Y, X)}{Var(X)}$ minimises variance.
 [Leveraging covariate adjustments at scale in online A/B testing](https://www.amazon.science/publications/leveraging-covariate-adjustments-at-scale-in-online-a-b-testing)
 
 **Core Idea:** Use ML predictions as covariates instead of raw pre-experiment data.
+
+**Intuition: "Better predictions = more noise removed"**
+CUPAC extends CUPED by using ML models to predict outcomes from multiple features, potentially capturing non-linear relationships. The key insight: variance reduction is proportional to $R^2$, so better predictions → more variance removed.
+
+**Critical Caveat on CUPAC vs. CUPED Gains:**
+The often-cited "10-30% additional reduction over CUPED" is highly dependent on the unexplained variance of the linear model:
+
+$\Delta_{CUPAC} = \sigma^2 \cdot (R^2_{ML} - R^2_{linear})$
+
+| Linear CUPED R² | ML Model R² | Marginal Gain | Worth the ML Overhead? |
+|-----------------|-------------|---------------|------------------------|
+| 0.3 | 0.5 | 20% additional | Yes |
+| 0.5 | 0.6 | 10% additional | Maybe |
+| 0.7 | 0.75 | 5% additional | Rarely |
+| 0.8 | 0.82 | 2% additional | No |
+
+**Rule of thumb:** If linear CUPED already achieves R² > 0.6 (common for stable metrics like DAU), the ML overhead provides near-zero marginal gain. Invest in CUPAC only when linear CUPED leaves substantial unexplained variance.
 
 **MDE Equation Modification:**
 $$MDE_{CUPAC} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-\rho_{ML}^2)}{n}}$$
@@ -573,7 +712,152 @@ Where $\rho_{surrogate}$ is the correlation between an in-experiment surrogate m
 
 ---
 
-### 2.9 Variance Reduction Methods: Comparison Table
+### 2.9 Neural Covariate Adjustment (Deep-CUPED)
+
+**Source:** [Neural Covariate Adjustment for Online Experiments](https://arxiv.org/abs/2306.01230) (Industry research from Meta/ByteDance, 2023)
+
+**Core Idea:** Replace linear regression in CUPED with deep neural networks to capture complex, non-linear relationships between covariates and outcomes. While CUPAC uses traditional ML models (XGBoost, random forests), Deep-CUPED leverages neural architectures specifically designed for tabular data and high-dimensional feature spaces.
+
+**MDE Equation Modification:**
+$MDE_{neural} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-R^2_{neural})}{n}}$
+
+Where $R^2_{neural} > R^2_{ML} > R^2_{linear}$ because neural networks can capture:
+- Higher-order feature interactions
+- Non-linear covariate-outcome relationships
+- Temporal patterns in sequential user behaviour
+
+**Method:**
+1. **Architecture selection:** Use tabular-specific architectures (TabNet, FT-Transformer, or custom embeddings)
+2. **Feature engineering:** Embed categorical variables, encode sequential behaviour
+3. **Training:** Fit on pre-experiment data to predict post-experiment outcomes
+4. **Adjustment:** Apply CUPED-style adjustment using neural predictions as covariates
+
+**Neural Architecture Considerations:**
+
+| Architecture | Strengths | Weaknesses | Best For |
+|--------------|-----------|------------|----------|
+| **MLP + Embeddings** | Simple, fast training | Limited interaction modelling | Moderate feature sets |
+| **TabNet** | Attention-based feature selection | Slower training | Interpretability needs |
+| **FT-Transformer** | State-of-art tabular performance | High computational cost | Maximum variance reduction |
+| **Wide & Deep** | Combines memorisation + generalisation | Complex tuning | Mixed feature types |
+
+**Key Findings:**
+- 10-20% additional variance reduction over traditional CUPAC
+- Most effective with high-dimensional behavioural features (clickstreams, session sequences)
+- Requires careful regularisation to avoid overfitting
+- Transfer learning from related experiments can reduce training data requirements
+
+**Practical Implementation:**
+1. **Data requirements:** Minimum 100K users for stable neural training
+2. **Training cost:** 2-10x higher than XGBoost-based CUPAC
+3. **Inference cost:** Can be batched; comparable to CUPAC at scale
+4. **Model maintenance:** Requires more frequent retraining than linear models
+
+**Limitations:**
+- Significant infrastructure investment (GPU training, model serving)
+- Risk of overfitting with small experiments
+- Less interpretable than linear CUPED
+- Diminishing returns if linear CUPED already achieves high $R^2$
+- Model debugging is more complex
+
+**When to Use Neural Adjustment:**
+- Linear CUPED achieves $R^2 < 0.3$ despite rich covariates
+- High-dimensional behavioural features available (sequences, graphs)
+- Experiment platform runs 100+ experiments/year (amortises infrastructure cost)
+- Marginal variance reduction is highly valuable (e.g., constrained traffic)
+
+**Connection to Other Methods:**
+- **CUPED (2.1):** Neural adjustment is a non-linear extension
+- **CUPAC (2.2):** Both use ML; neural uses deeper architectures
+- **Semiparametric (2.6):** Neural methods can approach efficiency bounds with sufficient data
+
+---
+
+### 2.10 Robust Estimation for Heavy-Tailed Metrics
+
+**Source:** [Robust A/B Testing with Heavy-Tailed Rewards](https://arxiv.org/abs/2205.15949) (Building on Bhamidi et al., Lee et al., 2022-2023)
+
+**Core Idea:** Standard variance reduction assumes finite variance, but revenue and engagement metrics often have heavy tails (power-law distributions) where variance is infinite or unstable. This paper applies Extreme Value Theory (EVT) and robust estimation to provide valid inference and variance reduction for heavy-tailed metrics.
+
+**The Heavy-Tail Problem:**
+- **Revenue metrics:** A small fraction of users generate most revenue (whales)
+- **Engagement metrics:** Session lengths, page views follow power-law distributions
+- **Impact on MDE:** Sample variance is unstable; standard CUPED can *increase* variance
+- **Statistical invalidity:** CLT convergence is slow; confidence intervals are unreliable
+
+**Detecting Heavy Tails:**
+| Diagnostic | Method | Heavy-Tail Indicator |
+|------------|--------|---------------------|
+| **Kurtosis** | $\kappa = E[(X-\mu)^4]/\sigma^4$ | $\kappa > 6$ |
+| **Hill estimator** | Tail index $\alpha$ from top-k order statistics | $\alpha < 2$ (infinite variance) |
+| **QQ-plot** | Compare to normal distribution | Upward curve in tails |
+| **Variance stability** | Plot cumulative variance vs. sample size | Non-convergent |
+
+**MDE Equation Modification:**
+For heavy-tailed metrics, the standard MDE formula doesn't apply. Instead:
+
+$MDE_{robust} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{robust}}{n^{2/\alpha}}}$
+
+Where:
+- $\alpha$ is the tail index (smaller = heavier tails)
+- $\sigma^2_{robust}$ is a robust scale estimate (e.g., MAD, trimmed variance)
+- $n^{2/\alpha}$ replaces $n$ because convergence is slower than $\sqrt{n}$
+
+**Robust Estimation Methods:**
+
+| Method | Mechanism | Variance Reduction | Bias | Best For |
+|--------|-----------|-------------------|------|----------|
+| **Winsorisation** | Cap values at percentile (e.g., 99th) | 30-60% | Small if threshold chosen well | Moderate heavy tails |
+| **Trimming** | Remove extreme values entirely | 40-70% | Can be substantial | Very heavy tails, outlier detection |
+| **Median-based** | Use median instead of mean | Robust to extremes | Different estimand | Exploratory analysis |
+| **M-estimators** | Huber loss, Tukey biweight | 20-40% | Minimal | Automated pipelines |
+| **EVT-based** | Model tail separately using GPD | Optimal for tails | Requires tail modelling | Revenue, LTV metrics |
+
+**Extreme Value Theory (EVT) Approach:**
+1. **Threshold selection:** Identify where the tail begins (e.g., 95th percentile)
+2. **Tail modelling:** Fit Generalised Pareto Distribution (GPD) to exceedances
+3. **Hybrid estimation:** Use empirical distribution for body, GPD for tail
+4. **Variance estimation:** Derive variance from fitted tail model
+
+**EVT-Adjusted Variance:**
+$\sigma^2_{EVT} = \sigma^2_{body} + \sigma^2_{tail,GPD}$
+
+Where $\sigma^2_{tail,GPD}$ is derived from the fitted GPD parameters, providing stable variance estimates even with infinite theoretical variance.
+
+**Key Findings:**
+- Winsorisation at 99th percentile reduces variance by 30-60% for revenue metrics
+- EVT-based methods provide valid confidence intervals when CLT fails
+- Combining winsorisation with CUPED is multiplicative (winsorise first, then CUPED)
+- Adaptive winsorisation (data-driven threshold) outperforms fixed percentiles
+
+**Practical Implementation:**
+1. **Diagnose:** Check kurtosis and Hill estimator before choosing method
+2. **Winsorise conservatively:** Start at 99th percentile, validate bias is acceptable
+3. **Apply CUPED after:** Winsorisation + CUPED provides best combined reduction
+4. **Monitor:** Track winsorisation rate; if >5% of values capped, investigate
+
+**Winsorisation + CUPED Combined:**
+$MDE_{combined} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{winsorised}(1-\rho^2_{winsorised})}{n}}$
+
+Typical combined reduction: 50-80% for revenue metrics.
+
+**Limitations:**
+- Winsorisation introduces small bias (treatment effect on extreme values is lost)
+- EVT requires sufficient tail data (typically n > 10,000)
+- Threshold selection affects results; sensitivity analysis recommended
+- Different metrics may require different robust methods
+
+**When to Use Robust Methods:**
+- Revenue, LTV, or monetary metrics
+- Kurtosis > 6 or Hill estimator $\alpha < 3$
+- Sample variance doesn't stabilise with increasing n
+- Standard CUPED shows unstable variance reduction across experiments
+
+**Connection to Practitioner's Guide:** This section provides the theoretical foundation for the "Heavy tails" row in the Ratio Metrics table, explaining *why* winsorisation is recommended for revenue metrics.
+
+---
+
+### 2.11 Variance Reduction Methods: Comparison Table
 
 | Method | Section | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
 |--------|---------|------------------|---------------------------|------------|-------------------|---------------|
@@ -585,6 +869,8 @@ Where $\rho_{surrogate}$ is the correlation between an in-experiment surrogate m
 | **Semiparametric** | 2.6 | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator | Theoretical benchmark |
 | **Pre+In Combined** | 2.7 | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + concurrent control | Volatile environments |
 | **Sparse/Delayed Surrogates** | 2.8 | $\sigma^2 \rightarrow \sigma^2(1-\rho^2_{surrogate})$ | 40-70% | Medium | Surrogate metrics | Sparse/delayed outcomes |
+| **Neural Adjustment (Deep-CUPED)** | 2.9 | $\sigma^2 \rightarrow \sigma^2(1-R^2_{neural})$ | 40-70% | High | Neural network infra | High-dimensional features |
+| **Heavy-Tailed Robust (EVT)** | 2.10 | $\sigma^2 \rightarrow \sigma^2_{robust}$ | 30-60% | Medium | Tail diagnostics | Revenue/monetary metrics |
 
 **Combining Variance Reduction Methods:**
 
@@ -596,14 +882,17 @@ Several variance reduction methods can be combined, but with diminishing returns
    $$MDE_{combined} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2 \cdot (1-\eta^2_{strat}) \cdot (1-R^2_{adj})}{n}}$$
    Where $\eta^2_{strat} = \sigma^2_{between}/\sigma^2$ is variance explained by strata, and $R^2_{adj}$ is variance explained by covariate adjustment.
 
-2. **CUPAC vs. Multi-Covariate CUPED vs. Pre+In:** These are *alternatives*, not complements—they all perform covariate adjustment at the estimation stage. Choose one.
+2. **CUPAC vs. Multi-Covariate CUPED vs. Pre+In vs. Neural:** These are *alternatives*, not complements—they all perform covariate adjustment at the estimation stage. Choose one based on infrastructure and data availability.
 
-3. **Diminishing Returns:** The semiparametric bound $\sigma^2_{eff}$ is the theoretical floor. Gains are sub-multiplicative because methods capture overlapping variance.
+3. **Winsorisation + CUPED:** These *can* be combined—winsorise first to stabilise variance, then apply CUPED. The combined effect is approximately multiplicative for heavy-tailed metrics:
+   $\sigma^2_{combined} \approx \sigma^2_{winsorised} \cdot (1-\rho^2_{winsorised})$
 
-4. **Temporal Stratification + CUPED:** Can be combined—temporal stratification handles time-varying effects while CUPED handles individual-level variance. The combined effect is approximately multiplicative:
+4. **Diminishing Returns:** The semiparametric bound $\sigma^2_{eff}$ is the theoretical floor. Gains are sub-multiplicative because methods capture overlapping variance.
+
+5. **Temporal Stratification + CUPED:** Can be combined—temporal stratification handles time-varying effects while CUPED handles individual-level variance. The combined effect is approximately multiplicative:
    $\sigma^2_{combined} \approx \sigma^2 \cdot (1-\eta^2_{temporal}) \cdot (1-\rho^2)$
 
-**Practical guidance:** Start with CUPED (low complexity, high impact), add stratification if population is heterogeneous, add temporal stratification for long-running experiments with non-stationarity, upgrade to CUPAC or Pre+In only if substantial residual variance remains.
+**Practical guidance:** Start with CUPED (low complexity, high impact), add stratification if population is heterogeneous, add temporal stratification for long-running experiments with non-stationarity. For revenue metrics, apply winsorisation before CUPED. Upgrade to CUPAC, Neural, or Pre+In only if substantial residual variance remains and infrastructure supports it.
 
 
 ---
@@ -654,6 +943,19 @@ The confidence sequence width at time $t$ is wider than fixed-horizon, but early
 $$MDE_{AVI} \approx (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2 \cdot c_{AVI}}{E[n_{stop}]}}$$
 
 Where $c_{AVI} \approx 1.2-1.3$ is the penalty for continuous monitoring, but $E[n_{stop}] < n_{fixed}$.
+
+**Important Nuance on c_AVI:** The 1.2-1.3 range is a common industry rule of thumb, but the actual penalty depends on:
+- **Mixing distribution choice:** Normal vs. truncated vs. sub-Gaussian mixtures yield different penalties
+- **Peeking frequency:** More frequent looks → higher penalty
+- **Significance level α:** For very small α (e.g., 0.001), the penalty increases significantly
+
+| α | Typical c_AVI Range | Notes |
+|---|---------------------|-------|
+| 0.05 | 1.2-1.3 | Standard case |
+| 0.01 | 1.3-1.5 | More conservative |
+| 0.001 | 1.5-2.0 | High-stakes decisions |
+
+For precise calculations, use the specific confidence sequence construction (e.g., mixture martingale, stitched boundaries) rather than rule-of-thumb values.
 
 **Key Parameters Explained:**
 
@@ -933,7 +1235,65 @@ Precision-Guided Adaptive Experimentation (PGAE) is the algo they use to estimat
 - Assumes parallel trends
 - Complex analysis with time-varying effects
 
+#### Modern Difference-in-Differences for Staggered Designs
 
+**Source:** [What's Trending in Difference-in-Differences? A Synthesis of the Recent Econometrics Literature](https://arxiv.org/abs/2301.11859) by Roth, Sant'Anna, Bilinski, and Poe (2023)
+
+**Core Idea:** This definitive 2023 synthesis addresses critical issues with traditional two-way fixed effects (TWFE) estimators in staggered rollout designs. When treatment effects are heterogeneous across time or units, TWFE can produce severely biased estimates—even with the wrong sign. The paper surveys modern DiD estimators that provide valid inference under heterogeneous treatment effects.
+
+**The TWFE Problem:**
+Traditional staggered DiD uses the regression:
+$Y_{it} = \alpha_i + \lambda_t + \tau D_{it} + \epsilon_{it}$
+
+Where $D_{it} = 1$ if unit $i$ is treated at time $t$. The coefficient $\tau$ is a weighted average of treatment effects, but the weights can be *negative* when:
+- Treatment effects vary over time (dynamic effects)
+- Treatment effects vary across cohorts (heterogeneous effects)
+- Already-treated units serve as controls for newly-treated units
+
+**Bias Illustration:**
+| Scenario | True Effect | TWFE Estimate | Problem |
+|----------|-------------|---------------|---------|
+| Constant effect | +5% | +5% | None |
+| Growing effect (2% → 8%) | +5% avg | +2% to +8% | Attenuated |
+| Heterogeneous cohorts | +5% avg | Can be negative | Sign reversal |
+
+**Modern DiD Estimators:**
+
+| Estimator | Authors | Key Innovation | When to Use |
+|-----------|---------|----------------|-------------|
+| **Callaway-Sant'Anna** | Callaway & Sant'Anna (2021) | Group-time ATTs, never-treated as control | Staggered adoption, want event-study |
+| **Sun-Abraham** | Sun & Abraham (2021) | Interaction-weighted estimator | Heterogeneous effects across cohorts |
+| **de Chaisemartin-D'Haultfœuille** | de Chaisemartin & D'Haultfœuille (2020) | Identifies "good" comparisons | Continuous treatment intensity |
+| **Borusyak-Jaravel-Spiess** | Borusyak et al. (2024) | Imputation-based, efficient | Large panels, computational efficiency |
+| **Stacked DiD** | Cengiz et al. (2019) | Stack cohort-specific datasets | Simple implementation |
+
+**MDE Implications:**
+Modern estimators typically have *higher* variance than TWFE because they:
+- Use only valid comparisons (smaller effective sample)
+- Estimate separate effects by cohort/time (more parameters)
+- Avoid negative weighting (less "borrowing" across groups)
+
+$MDE_{modern\_DiD} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2}{n_{effective} \cdot DE_{modern}}}$
+
+Where $n_{effective} < n$ and $DE_{modern} < DE_{TWFE}$ due to valid-comparison restrictions.
+
+**Practical Guidance for Experiment Platforms:**
+
+1. **Pre-testing:** Use Roth (2022) pre-trends test to validate parallel trends assumption
+2. **Estimator choice:**
+   - Default: Callaway-Sant'Anna (well-documented, widely implemented)
+   - Large panels: Borusyak et al. (computational efficiency)
+   - Simple cases: Stacked DiD (easy to implement and explain)
+3. **Sensitivity analysis:** Report both TWFE and modern estimator; large differences indicate heterogeneity
+4. **Event-study plots:** Always visualise dynamic effects; flat pre-trends + clear post-treatment jump validates design
+
+**Implementation in R/Python:**
+- R: `did` package (Callaway-Sant'Anna), `fixest` (Sun-Abraham)
+- Python: `differences` package, `pyfixest`
+
+**Connection to Staggered Rollout (above):** The optimal design literature (Xiong et al.) assumes homogeneous effects. When effects are heterogeneous, use modern DiD estimators for analysis, but the design principles (S-curve rollout, PGAE) remain valid.
+
+**Key Takeaway:** If using staggered rollout designs, *always* use modern DiD estimators (Callaway-Sant'Anna or similar) rather than TWFE. The MDE may be higher, but the estimates will be unbiased.
 
 ---
 
@@ -942,6 +1302,14 @@ Precision-Guided Adaptive Experimentation (PGAE) is the algo they use to estimat
 **Source:** [Large-scale validation and analysis of interleaved search evaluation](https://www.cs.cornell.edu/~tj/publications/chapelle_etal_12a.pdf)
 
 **Core Idea:** Present both treatment and control simultaneously to the same user, using preference signals to detect differences. The user sees a blended list; if they click more on results from Ranker A than Ranker B, Ranker A earns a "win" for that query.
+
+**Intuition: "Same user, same context, different treatment"**
+In standard A/B testing, you compare *different users* in treatment vs. control, so individual differences add noise. Interleaving shows *the same user* both variants simultaneously, eliminating between-user variance entirely. Each user becomes their own control.
+
+*When it works:* Ranking/recommendation systems where both variants can be shown in a single page.
+*When it fails:* Non-ranking experiments (UI changes, pricing), user-level treatments that can't be interleaved.
+
+**⚠️ Maintenance Warning:** Interleaving code is notoriously brittle during UI migrations. The blending logic must be updated whenever the presentation layer changes, and bugs can silently bias results. Budget for ongoing maintenance, not just initial build.
 
 **MDE Equation Modification:**
 In standard A/B testing:
@@ -1820,18 +2188,22 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Semiparametric** | 2.6 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator |
 | **Pre+In Combined** | 2.7 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + in-experiment |
 | **Sparse/Delayed Surrogates** | 2.8 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho^2_{surrogate})$ | 40-70% | Medium | Surrogate metrics |
+| **Neural Adjustment (Deep-CUPED)** | 2.9 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2_{neural})$ | 40-70% | High | Neural network infra |
+| **Heavy-Tailed Robust** | 2.10 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{robust}$ | 30-60% (revenue) | Medium | Tail diagnostics |
 | **GST** | 3.1 | Sequential Testing | $n \rightarrow n \cdot ASN_{ratio}$ | 30-50% (sample) | Medium | Pre-planned schedule |
 | **Always Valid** | 3.2 | Sequential Testing | Early stopping any time | 20-40% (sample) | Medium | Continuous data |
 | **mSPRT** | 3.3 | Sequential Testing | $n \rightarrow E[n_{stop}]$ | 20-40% (sample) | Medium | Continuous data |
 | **Futility Stopping** | 3.4 | Sequential Testing | Stop when effect unlikely | 20-40% (for null) | Medium | Interim analyses |
 | **Switchback** | 4.1 | Design Innovation | Within-unit comparison | 20-40% | High | Time-series data |
 | **Staggered Rollout** | 4.2 | Design Innovation | $n \rightarrow n \cdot DE$ | 20-50% | Medium | Rollout flexibility |
+| **Modern DiD (Roth et al.)** | 4.2 | Design Innovation | Valid heterogeneous effects | Unbiased (higher var) | Medium | Staggered timing |
 | **Interleaved Testing** | 4.3 | Design Innovation | $2\sigma^2 \rightarrow \sigma^2_{paired}$ | 50-90% | Medium | Ranking systems |
 | **Debiased Interleaving** | 4.4 | Design Innovation | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
 | **Large-Scale Interleaving** | 4.5 | Design Innovation | Paired comparison at scale | 50-90% | High | Production ranking |
 | **Adaptive Design** | 4.6 | Design Innovation | Optimal allocation | Varies | High | Heterogeneous effects |
 | **Ranking Interference Correction** | 4.7 | Design Innovation | Item-level bias correction | Bias correction | High | Ad/item attribution |
 | **Cluster Randomisation** | 5.1 | Marketplace | Reduce interference | Varies | Medium | Geographic markets |
+| **Causal Clustering** | 5.1 | Marketplace | Optimal cluster design | 20-40% vs random | High | Network interference |
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
 | **Equilibrium Correction** | 5.1 | Marketplace | Structural modelling | Bias correction | Very High | Pricing experiments |
