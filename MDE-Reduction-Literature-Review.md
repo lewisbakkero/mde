@@ -265,7 +265,9 @@ Where $\eta^2_{temporal} = \sigma^2_{between-time}/\sigma^2$ is the fraction of 
 
 ### 2.6 Efficient Semiparametric Estimation Under Covariate Adaptive Randomization
 
-**Source:** [Covariate Adjustment in Randomized Trials](https://covariateadjustment.github.io/)
+**Source:** 
+- [Covariate Adjustment in Randomized Trials](https://covariateadjustment.github.io/)
+- [Efficient Semiparametric Estimation of Average Treatment Effects Under Covariate Adaptive Randomization](https://www.amazon.science/publications/efficient-semiparametric-estimation-of-average-treatment-effects-under-covariate-adaptive-randomization) by Rafi et al.
 
 **Core Idea:** Establishes theoretical efficiency bounds for covariate adjustment methods.
 
@@ -858,7 +860,24 @@ The three interleaving approaches (4.4, 4.5, 4.6) represent an evolution from fo
 
 Methods in this section address the unique challenges of two-sided marketplaces where interference between units inflates variance.
 
-### 5.1 Experimental Design in Marketplaces
+**Two Approaches to Interference:**
+
+Marketplace experimentation requires dealing with interference—when treating one unit affects outcomes for others. There are two fundamentally different goals:
+
+| Goal | Approach | Question Answered | Sections |
+|------|----------|-------------------|----------|
+| **Handle Interference** | Choose the right experimental design | "What is the total treatment effect if we launch to everyone?" | 5.1 |
+| **Decompose Interference** | Use multiple randomization layers | "How much of the effect is direct vs. spillover?" | 5.2 |
+
+- **Section 5.1 (Handling):** Focuses on *eliminating or containing* interference to get an unbiased estimate of the total treatment effect. Methods include cluster randomization, synthetic control, and budget-split designs.
+
+- **Section 5.2 (Decomposing):** Focuses on *understanding* interference by separating direct effects (treatment → treated user) from indirect effects (treatment → other users via spillovers). Uses multiple randomization layers.
+
+Choose **5.1 methods** when you need a launch decision. Choose **5.2 methods** when you need to understand *why* the treatment works (or doesn't).
+
+---
+
+### 5.1 Handling Interference: Experimental Design in Marketplaces
 
 **Source:** [Experimental Design in Marketplaces](https://projecteuclid.org/journals/statistical-science/advance-publication/Experimental-Design-in-Marketplaces/10.1214/23-STS883.short)
 
@@ -962,50 +981,23 @@ Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\r
 - Assumes budget is the primary interference mechanism
 - Specific to ad marketplaces with budget constraints
 
-##### Experimental Design Selection: Budget-Split vs. Switchback
+**Budget-Split vs. Switchback Selection:**
 
-In marketplace experimentation, the choice between **Budget-split** and **Switchback** designs is driven by **Budget Density**. This determines whether a campaign's pacing logic can remain stable when its resources are partitioned.
+The choice depends on **Budget Density**—whether a campaign has enough spend for stable pacing when partitioned.
 
----
+$$B_{min} = N_{min} \times avg\_CPC$$
 
-###### 1. Defining Budget Density
-Budget Density measures the "liquidity" of a cohort. A cohort must have enough spend to ensure that the Law of Large Numbers smooths out individual auction shocks.
+Where $N_{min}$ is minimum daily events (typically 50-100) for pacing convergence.
 
-To maintain pacing stability, each experimental arm (Pot) must meet a minimum spend threshold:
+| Budget Density | Recommended Design | Rationale |
+|----------------|-------------------|-----------|
+| **High** (Budget/2 > B_min) | Budget-Split | High power, zero temporal bias |
+| **Medium** | Biased Split (90/10) | Meets B_min for larger arm |
+| **Low** | Switchback | Preserves market integrity |
 
-> **B_min = N_min * avg_CPC**
+**Switch to Switchback when:** Pacing shows >20% hourly variance, arms fail to spend allocation, or >30% of budget consumed in single auction.
 
-* **N_min**: The minimum number of daily "events" (clicks/wins) required for the pacing multiplier (alpha) to converge (typically 50–100+ depending on variance).
-* **avg_CPC**: The average cost per event in the cohort.
-
- The Density Condition
-A cohort is viable for a **50/50 Budget-split** only if:
-> **(Total Cohort Budget / 2) > B_min**
-
-
-###### 2. Decision Framework
-
-| Metric Level | Recommended Design | Justification |
-| :--- | :--- | :--- |
-| **High Density** | **Budget-Split** | High power, zero temporal bias, and no carryover effects. Best for high-volume markets. |
-| **Medium Density** | **Biased Split (e.g., 90/10)** | Use if B_min is met by the 90% arm but not the 10% arm. Requires longer runtime for power. |
-| **Low Density** | **Switchback** | Preserves market integrity by giving the algorithm 100% of the budget during active windows. |
-
-
-
-###### 3. When to Move to Switchback
-You should transition a cohort from Budget-split to Switchback if any of the following "Instability Triggers" occur:
-
-1.  **Pacing Jitter:** The pacing multiplier (alpha) shows high hourly variance (>20% fluctuation) in the partitioned pots compared to the historical baseline.
-2.  **Spend Underrun:** The treatment or control arm fails to spend its allocated 50% pot, despite there being available supply (indicating the budget was too small for the bidder to "find" auctions).
-3.  **Lumpy Spend:** More than 30% of the daily budget is consumed in a single auction or within a very short timeframe (e.g., < 5 minutes).
-
-
-###### 4. Comparison Summary
-* **Budget-Split:** Isolates by **Space/Budget**. Best for accuracy in "Global" markets.
-* **Switchback:** Isolates by **Time**. Best for stability in "Niche" or "Small" cohorts.
-
-Hybrid Approaches
+#### Hybrid Approaches
 
 Many platforms combine methods:
 1. **Cluster + CUPED:** Cluster randomization for interference, CUPED for within-cluster variance reduction
@@ -1024,13 +1016,17 @@ Many platforms combine methods:
 - May need domain expertise to define appropriate clusters
 - Trade-off: bias reduction vs. variance inflation
 
-### 5.2 Multiple Randomization Designs
+### 5.2 Decomposing Interference: Multiple Randomization Designs
 
 **Source:** 
-- [Measuring direct and Indirect Impacts in a Multi-Sided Marketplace]()
-- "Multiple Randomization Designs: Estimation and Inference with Interference"
+- [Measuring direct and Indirect Impacts in a Multi-Sided Marketplace](https://drive.google.com/file/d/1auP6JpB0DxIQRCIDazum5uFlm9BtTkiS/view)
+- [Multiple Randomization Designs: Estimation and Inference with Interference](https://arxiv.org/abs/2112.13495)
 
 **Core Idea:** Use multiple layers of randomization to identify direct and indirect effects.
+
+If you give a 20% discount to a rider in Uber, they are more likely to book a ride (direct effect).
+
+Because that rider booked a ride, there is one fewer driver available for everyone else. This might increase wait times for the "Control" group, making the discount look more successful than it actually is by "stealing" supply from the control (indirect effect).
 
 **MDE Equation Modification:**
 For direct effect estimation with two-stage randomization:
@@ -1149,7 +1145,7 @@ Under the **Network Interference** assumption, the complexity collapses:
 
 ### 6.1 Multi-Armed Bandits for A/B Testing
 
-**Source:** "Efficient experimentation: A review of four methods"
+**Source:** [Efficient experimentation: A review of four methods](https://hstalks.com/article/9570/efficient-experimentation-a-review-of-four-methods/)
 
 **Core Idea:** Adaptively allocate traffic to better-performing treatments.
 
@@ -1293,7 +1289,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
 
 ## 8. Practical Recommendations for Ads A/B Testing
 
-### 9.1 Quick Wins (Low Effort, High Impact)
+### 8.1 Quick Wins (Low Effort, High Impact)
 
 1. **Implement CUPED with pre-experiment ad engagement**
    - Use 7-14 day pre-period
@@ -1307,7 +1303,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
    - Reduces between-group variance
    - Expected: 10-20% additional reduction
 
-### 9.2 Medium-Term Investments
+### 8.2 Medium-Term Investments
 
 1. **Build CUPAC infrastructure**
    - ML models for outcome prediction
@@ -1321,7 +1317,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
    - For marketplace-level experiments
    - Use data-driven design optimization
 
-### 9.3 Long-Term Platform Capabilities
+### 8.3 Long-Term Platform Capabilities
 
 1. **Budget-split design for ad experiments**
    - Eliminates marketplace interference
