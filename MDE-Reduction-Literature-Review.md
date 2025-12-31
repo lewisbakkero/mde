@@ -357,6 +357,8 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 - In-experiment adjustment can introduce bias if not properly implemented
 - More complex to implement and validate; likely less stable for large scale prod environments
 
+**Related:** For sparse and delayed outcomes specifically, see Section 2.8 which addresses targeted variance reduction when most users have zero/null metric values.
+
 | Method | Data Used | Strengths | Weaknesses |
 | :--- | :--- | :--- | :--- |
 | **Naive (Diff-in-Means)** | None | Simple, unbiased. | High variance; requires large samples. |
@@ -366,7 +368,67 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 
 ---
 
-### 2.8 Variance Reduction Methods: Comparison Table
+### 2.8 Variance Reduction for Sparse and Delayed Outcomes
+
+**Source:** [Variance Reduction Using In-Experiment Data: Efficient and Targeted Online Measurement for Sparse and Delayed Outcomes](https://dl.acm.org/doi/10.1145/3580305.3599928) (KDD 2023)
+
+**Core Idea:** Standard variance reduction methods (CUPED, CUPAC) struggle with **sparse outcomes** (where most users have zero values, e.g., purchases, conversions) and **delayed outcomes** (metrics that take time to materialise, e.g., subscription renewals, long-term retention). This paper introduces targeted variance reduction using in-experiment surrogate metrics that are correlated with the sparse/delayed primary outcome.
+
+**The Sparse/Delayed Outcome Challenge:**
+- **Sparse outcomes:** In e-commerce, only 2-5% of users convert. The outcome $Y$ is mostly zeros, making pre-experiment covariates weakly predictive.
+- **Delayed outcomes:** Subscription renewal happens 30+ days after treatment. Pre-experiment data is stale by the time the outcome is observed.
+- **Standard CUPED fails:** When $\rho_{pre,Y}$ is low due to sparsity or delay, variance reduction is minimal.
+
+**MDE Equation Modification:**
+$MDE_{sparse} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-\rho^2_{surrogate})}{n}}$
+
+Where $\rho_{surrogate}$ is the correlation between an in-experiment surrogate metric $S$ and the sparse/delayed outcome $Y$. The key insight is that $\rho_{surrogate} \gg \rho_{pre}$ because:
+- Surrogates are measured during the experiment (temporally proximate)
+- Surrogates can be chosen to be leading indicators of the outcome
+
+**Method:**
+1. **Identify surrogate metrics:** Find in-experiment metrics $S$ that are:
+   - Correlated with the primary outcome $Y$
+   - Observable earlier or more frequently than $Y$
+   - Examples: page views → purchases, engagement → retention, clicks → conversions
+
+2. **Targeted adjustment:** Apply CUPED-style adjustment using the surrogate:
+   $\hat{Y}_{adj} = Y - \theta(S - \bar{S})$
+   Where $\theta = \frac{Cov(Y, S)}{Var(S)}$
+
+3. **Efficient estimation:** Use cross-fitting to avoid overfitting when selecting surrogates from many candidates
+
+**Surrogate Selection Criteria:**
+| Criterion | Description | Example |
+|-----------|-------------|---------|
+| **Temporal proximity** | Surrogate observed before/during outcome window | Clicks (day 1) → Purchase (day 7) |
+| **Causal pathway** | Surrogate on causal path to outcome | Engagement → Retention |
+| **High correlation** | Strong $\rho_{S,Y}$ | Add-to-cart → Purchase |
+| **Low sparsity** | Surrogate less sparse than outcome | Page views (dense) → Conversions (sparse) |
+
+**Key Findings:**
+- 40-70% variance reduction for sparse outcomes (vs 10-20% with standard CUPED)
+- Enables earlier experiment decisions by using leading indicators
+- Particularly effective for conversion metrics in ads and e-commerce
+- Can reduce experiment duration by 50%+ for delayed outcomes
+
+**Limitations:**
+- Requires domain knowledge to identify good surrogates
+- Surrogate-outcome relationship may vary across segments
+- Risk of surrogate metric gaming if used for decisions
+- Treatment may affect surrogate-outcome correlation (violation of surrogacy assumption)
+
+**When to Use:**
+- Primary metric has >90% zero values (sparse)
+- Outcome takes >7 days to observe (delayed)
+- Pre-experiment CUPED achieves <20% variance reduction
+- Leading indicator metrics are available
+
+**Connection to Section 2.7:** While Section 2.7 combines pre-experiment and in-experiment data for general variance reduction, this approach specifically targets the sparse/delayed outcome problem by using in-experiment *surrogate* metrics rather than in-experiment *control* data.
+
+---
+
+### 2.9 Variance Reduction Methods: Comparison Table
 
 | Method | Section | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
 |--------|---------|------------------|---------------------------|------------|-------------------|---------------|
@@ -377,6 +439,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 | **Temporal Stratification** | 2.5 | $\sigma^2 \rightarrow \sigma^2(1-\eta^2_{temporal})$ | 10-30% | Medium | Time-series data | Non-stationary environments |
 | **Semiparametric** | 2.6 | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator | Theoretical benchmark |
 | **Pre+In Combined** | 2.7 | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + concurrent control | Volatile environments |
+| **Sparse/Delayed Surrogates** | 2.8 | $\sigma^2 \rightarrow \sigma^2(1-\rho^2_{surrogate})$ | 40-70% | Medium | Surrogate metrics | Sparse/delayed outcomes |
 
 **Combining Variance Reduction Methods:**
 
@@ -1281,6 +1344,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Temporal Stratification** | 2.5 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\eta^2_{temporal})$ | 10-30% | Medium | Time-series data |
 | **Semiparametric** | 2.6 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{eff}$ | Theoretical bound | High | Depends on estimator |
 | **Pre+In Combined** | 2.7 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2_{combined})$ | 30-60% | Medium | Pre + in-experiment |
+| **Sparse/Delayed Surrogates** | 2.8 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho^2_{surrogate})$ | 40-70% | Medium | Surrogate metrics |
 | **GST** | 3.1 | Sequential Testing | $n \rightarrow n \cdot ASN_{ratio}$ | 30-50% (sample) | Medium | Pre-planned schedule |
 | **Always Valid** | 3.2 | Sequential Testing | Early stopping any time | 20-40% (sample) | Medium | Continuous data |
 | **mSPRT** | 3.3 | Sequential Testing | $n \rightarrow E[n_{stop}]$ | 20-40% (sample) | Medium | Continuous data |
@@ -1311,12 +1375,16 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 │     │   └─ Many algorithms? → Large-Scale Interleaving (4.5)                │
 │     └─ Other → Continue to step 2                                           │
 │                                                                             │
-│  2. Do you have pre-experiment data?                                        │
+│  2. Is your primary metric sparse or delayed?                               │
+│     ├─ Yes (>90% zeros or >7 day delay) → Surrogate-based VR (2.8, 40-70%)  │
+│     └─ No  → Continue to step 3                                             │
+│                                                                             │
+│  3. Do you have pre-experiment data?                                        │
 │     ├─ Yes → Start with CUPED/CUPAC (20-60% MDE↓)                           │
 │     │   └─ Also have in-experiment control? → Pre+In Combined (2.7)         │
 │     └─ No  → Consider stratification (10-30% MDE↓)                          │
 │                                                                             │
-│  3. Is there interference between units?                                    │
+│  4. Is there interference between units?                                    │
 │     ├─ Yes → Consider:                                                      │
 │     │        ├─ Budget-split (ad marketplaces, 5.1)                         │
 │     │        ├─ Switchback (time-based interference, 4.1)                   │
@@ -1325,16 +1393,16 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 │     │        └─ Network-aware bandits (social effects, 5.3)                 │
 │     └─ No  → Standard randomisation + variance reduction                    │
 │                                                                             │
-│  4. Do you need continuous monitoring?                                      │
+│  5. Do you need continuous monitoring?                                      │
 │     ├─ Yes → mSPRT (3.3) or Always Valid Inference (3.2)                    │
 │     │   └─ High experiment volume? → Add Futility Stopping (3.4)            │
 │     └─ No  → GST (3.1) or fixed-horizon                                     │
 │                                                                             │
-│  5. Are treatment effects non-stationary over time?                         │
+│  6. Are treatment effects non-stationary over time?                         │
 │     ├─ Yes → Temporal Stratification (2.5)                                  │
 │     └─ No  → Standard analysis                                              │
 │                                                                             │
-│  6. Do you have historical experiment data?                                 │
+│  7. Do you have historical experiment data?                                 │
 │     ├─ Yes → Leverage cross-experiment learning (6.1, 20-40% MDE↓)          │
 │     └─ No  → Build experiment database for future                           │
 │                                                                             │
@@ -1350,6 +1418,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | CUPED | GST | ✓ | Apply CUPED at each look |
 | CUPED | Switchback | ✓ | Use pre-period as covariate |
 | CUPED | Interleaved | ✓ | Both reduce variance |
+| Sparse/Delayed Surrogates | Sequential | ✓ | Surrogate VR + early stopping |
 | Pre+In Combined | Stratification | ✓ | Apply within strata |
 | Pre+In Combined | Sequential | ✓ | Apply at each analysis |
 | Stratification | Temporal Stratification | ~ | Overlapping variance components |
