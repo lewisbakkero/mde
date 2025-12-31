@@ -1209,6 +1209,79 @@ $MDE_{equilibrium} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2}
 - Treatment fraction is large (>10%)
 - Full rollout decision is high-stakes
 
+#### Two-Sided Platform Experimentation
+
+**Source:** [Experimental Design in Two-Sided Platforms: An Analysis of Bias](https://arxiv.org/abs/2002.05670) by Johari, Li, Liskovich, Weintraub (2022)
+
+**Core Idea:** In two-sided platforms (e.g., ride-sharing, e-commerce, ad marketplaces), experimenters must choose *which side* to randomise. This paper provides a rigorous analysis of the bias that arises from different randomisation strategies and guidance on optimal experimental design.
+
+**The Two-Sided Randomisation Problem:**
+Consider a ride-sharing platform testing a new matching algorithm:
+- **Randomise riders:** Some riders get new algorithm, others get old
+- **Randomise drivers:** Some drivers use new algorithm, others use old
+- **Randomise both:** Complex factorial design
+
+Each choice leads to different bias patterns because treating one side affects outcomes on the other side through the matching process.
+
+**Bias Analysis by Randomisation Strategy:**
+
+| Strategy | Bias Source | Bias Direction | When to Use |
+|----------|-------------|----------------|-------------|
+| **Demand-side (buyers/riders)** | Supply reallocation to treatment | Overestimates treatment effect | Treatment primarily affects demand |
+| **Supply-side (sellers/drivers)** | Demand reallocation to treatment | Overestimates treatment effect | Treatment primarily affects supply |
+| **Two-sided (both)** | Reduced but not eliminated | Smaller bias | Treatment affects both sides |
+| **Market-level cluster** | No within-market interference | Unbiased but high variance | Gold standard when feasible |
+
+**MDE Equation Modification:**
+The paper shows that one-sided randomisation introduces bias proportional to market thickness:
+$\hat{\tau}_{one-sided} = \tau_{true} + \underbrace{\frac{\tau_{true}}{M}}_{\text{interference bias}}$
+
+Where $M$ is a measure of market thickness (number of potential matches). In thin markets, bias can be substantial.
+
+For two-sided randomisation with treatment fractions $p_D$ (demand) and $p_S$ (supply):
+$\text{Bias} \propto p_D \cdot p_S \cdot \tau_{true}$
+
+**Method:**
+1. **Characterise the platform:** Identify demand side, supply side, and matching mechanism
+2. **Assess market thickness:** Thin markets have larger interference bias
+3. **Choose randomisation strategy:**
+   - If treatment affects one side primarily → randomise that side
+   - If treatment affects both sides → consider two-sided or cluster randomisation
+4. **Estimate and correct bias:** Use structural models or design-based corrections
+
+**Key Insight - Optimal Randomisation Side:**
+
+| Treatment Type | Recommended Randomisation | Rationale |
+|---------------|--------------------------|-----------|
+| Buyer-facing UI change | Demand-side | Treatment only directly affects buyers |
+| Seller onboarding improvement | Supply-side | Treatment only directly affects sellers |
+| Matching algorithm change | Two-sided or cluster | Affects both sides through matching |
+| Pricing change | Market-level cluster | Strong equilibrium effects |
+| Commission rate change | Supply-side | Primarily affects seller behaviour |
+
+**Practical Guidance:**
+- **Thin markets:** Bias is larger; prefer cluster randomisation or smaller treatment fractions
+- **Thick markets:** One-sided randomisation may be acceptable; bias is smaller
+- **Symmetric treatments:** Two-sided randomisation reduces bias
+- **Asymmetric treatments:** Randomise the side most affected by treatment
+
+**Key Findings:**
+- One-sided randomisation systematically overestimates treatment effects
+- Bias magnitude depends on market thickness and treatment fraction
+- Two-sided randomisation reduces but doesn't eliminate bias
+- Market-level cluster randomisation eliminates bias but increases variance
+
+**Limitations:**
+- Requires understanding of platform matching mechanism
+- Market thickness may vary across segments/times
+- Two-sided randomisation is operationally complex
+- Cluster randomisation may not be feasible for global platforms
+
+**Connection to Other Methods:**
+- **Equilibrium Correction (Wager & Xu):** Provides structural approach to correct bias
+- **Budget-Split:** A form of supply-side randomisation for ad platforms
+- **Switchback:** Time-based alternative when spatial clustering isn't feasible
+
 ### 5.2 Decomposing Interference: Multiple Randomisation Designs
 
 **Source:** 
@@ -1369,6 +1442,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
 | **Equilibrium Correction** | 5.1 | Structural modelling | Excellent | Very High | Pricing/allocation experiments |
+| **Two-Sided Randomisation** | 5.1 | Optimal side selection | Good | Medium | Two-sided platforms |
 | **Multiple Randomisation** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
 | **Network-Aware Bandits** | 5.3 | Model spillovers (known structure) | Good | High | Social networks |
 | **Adversarial Bandits** | 5.3 | Worst-case interference | Good | High | Unknown interference |
@@ -1381,6 +1455,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
 | Many small markets | Cluster Randomisation | Standard approach, sufficient power |
 | Pricing/allocation experiments | Equilibrium Correction | Accounts for market re-equilibration |
+| Two-sided platform (ride-sharing, e-commerce) | Two-Sided Randomisation | Reduces interference bias |
 | Need to understand spillovers | Multiple Randomisation | Decomposes direct/indirect effects |
 | Social network effects (known graph) | Network-Aware Bandits | Models interference structure |
 | Unknown/adversarial interference | Adversarial Bandits | Robust worst-case guarantees |
@@ -1472,6 +1547,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
 | **Equilibrium Correction** | 5.1 | Marketplace | Structural modelling | Bias correction | Very High | Pricing experiments |
+| **Two-Sided Randomisation** | 5.1 | Marketplace | Optimal side selection | Bias reduction | Medium | Two-sided platforms |
 | **Multiple Randomisation** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
 | **Network-Aware Bandits** | 5.3 | Marketplace | Model spillovers (known) | Varies | High | Social networks |
 | **Adversarial Bandits** | 5.3 | Marketplace | Worst-case interference | Varies | High | Unknown interference |
