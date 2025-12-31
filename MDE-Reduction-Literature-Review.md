@@ -33,7 +33,7 @@ This review covers techniques from 25+ papers spanning:
 - Covariate adjustment methods (CUPED, CUPAC, ML-based, Pre+In-Experiment Combined)
 - Sequential testing approaches (GST, mSPRT, Always Valid Inference)
 - Experimental design innovations (Switchback, Staggered Rollout, Budget-Split, Interleaving)
-- Marketplace-specific methods (Cluster randomization, Multiple randomization)
+- Marketplace-specific methods (Cluster randomisation, Multiple randomisation)
 - Adaptive methods (Multi-armed bandits, Adaptive experimental design)
 
 ---
@@ -45,7 +45,7 @@ All methods in this section reduce MDE by decreasing the variance term $\sigma^2
 
 ### 2.1 CUPED (Controlled-experiment Using Pre-Experiment Data)
 
-**Source:** [Improving the sensitivity of online controlled experiments by utilizing pre-experiment data](https://robotics.stanford.edu/~ronnyk/2013-02CUPEDImprovingSensitivityOfControlledExperiments.pdf)
+**Source:** [Improving the sensitivity of online controlled experiments by utilising pre-experiment data](https://robotics.stanford.edu/~ronnyk/2013-02CUPEDImprovingSensitivityOfControlledExperiments.pdf)
 
 **Core Idea:** Use pre-experiment covariate data to reduce variance through regression adjustment.
 
@@ -57,11 +57,11 @@ Where $\rho$ is the correlation between pre-experiment covariate $X$ and outcome
 **Method:**
 The CUPED estimator adjusts the outcome $Y$ using a pre-experiment covariate $X$:
 $$\hat{Y}_{CUPED} = Y - \theta(X - \bar{X})$$
-Where $\theta = \frac{Cov(Y, X)}{Var(X)}$ minimizes variance.
+Where $\theta = \frac{Cov(Y, X)}{Var(X)}$ minimises variance.
 
 **Key Findings:**
 - 50%+ variance reduction achievable with highly correlated pre-experiment metrics
-- Works best when pre-experiment behavior strongly predicts post-experiment outcomes
+- Works best when pre-experiment behaviour strongly predicts post-experiment outcomes
 - Simple to implement and widely adopted (Microsoft, Netflix, LinkedIn)
 
 **Limitations:**
@@ -162,7 +162,7 @@ $$Y = Y_{null} + Y_{residual}$$
 With multiple covariates $X_1, ..., X_k$:
 $$MDE_{multi} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1-R^2)}{n}}$$
 
-Where $R^2$ is the coefficient of determination from regressing $Y$ on all covariates. This generalizes the single-covariate case where $R^2 = \rho^2$.
+Where $R^2$ is the coefficient of determination from regressing $Y$ on all covariates. This generalises the single-covariate case where $R^2 = \rho^2$.
 
 In this framework, $\rho$ is typically much higher than in traditional CUPED because $Y_{null}$ is measured **during** the experiment rather than using historical data.
 
@@ -196,7 +196,7 @@ In this framework, $\rho$ is typically much higher than in traditional CUPED bec
 
 **Source:** [Efficient experimentation: A review of four methods to reduce the costs of A/B testing](https://ideas.repec.org/a/aza/ama000/y2025v11i1p61-71.html)
 
-**Core Idea:** Divide population into homogeneous strata and randomize within strata.
+**Core Idea:** Divide population into homogeneous strata and randomise within strata.
 
 **MDE Equation Modification:**
 $$MDE_{strat} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{within}}{n}}$$
@@ -206,7 +206,7 @@ $$\sigma^2_{within} = \sigma^2 - \sigma^2_{between}$$
 
 **Method:**
 1. Define strata based on pre-experiment characteristics
-2. Randomize treatment assignment within each stratum
+2. Randomise treatment assignment within each stratum
 3. Estimate treatment effect as weighted average across strata
 
 **Key Findings:**
@@ -256,18 +256,18 @@ Where $\eta^2_{temporal} = \sigma^2_{between-time}/\sigma^2$ is the fraction of 
 - Adaptive bucket sizing outperforms fixed stratification
 
 **Limitations:**
-- Requires modeling assumptions about temporal dynamics
+- Requires modelling assumptions about temporal dynamics
 - More complex analysis than standard stratification
 - May require longer experiments to estimate dynamics
 - Computational overhead for adaptive bucket selection
 
 ---
 
-### 2.6 Efficient Semiparametric Estimation Under Covariate Adaptive Randomization
+### 2.6 Efficient Semiparametric Estimation Under Covariate Adaptive Randomisation
 
 **Source:** 
-- [Covariate Adjustment in Randomized Trials](https://covariateadjustment.github.io/)
-- [Efficient Semiparametric Estimation of Average Treatment Effects Under Covariate Adaptive Randomization](https://www.amazon.science/publications/efficient-semiparametric-estimation-of-average-treatment-effects-under-covariate-adaptive-randomization) by Rafi et al.
+- [Covariate Adjustment in Randomised Trials](https://covariateadjustment.github.io/)
+- [Efficient Semiparametric Estimation of Average Treatment Effects Under Covariate Adaptive Randomisation](https://www.amazon.science/publications/efficient-semiparametric-estimation-of-average-treatment-effects-under-covariate-adaptive-randomisation) by Rafi et al.
 
 **Core Idea:** Establishes theoretical efficiency bounds for covariate adjustment methods.
 
@@ -293,7 +293,7 @@ The efficient variance $\sigma^2_{eff}$ is derived from the **efficient influenc
 2. **Efficient Variance Formula:** The semiparametric efficient variance is the variance of the influence function:
    $$\sigma^2_{eff} = E[\psi^2] = E\left[\frac{Var(Y|W=1,X)}{e(X)}\right] + E\left[\frac{Var(Y|W=0,X)}{1-e(X)}\right] + Var(\tau(X))$$
    
-   For a randomized experiment with balanced assignment $e(X) = 0.5$:
+   For a randomised experiment with balanced assignment $e(X) = 0.5$:
    $$\sigma^2_{eff} = 2 \cdot E[Var(Y|W,X)] + Var(\tau(X))$$
 
 3. **Practical Interpretation:** The efficient variance has three components:
@@ -311,15 +311,15 @@ The efficient variance $\sigma^2_{eff}$ is derived from the **efficient influenc
    This shows CUPED achieves the semiparametric bound under homogeneous treatment effects.
 
 **Method:**
-1. Derive efficiency bounds for various randomization schemes
+1. Derive efficiency bounds for various randomisation schemes
 2. Construct estimators achieving these bounds (AIPW, TMLE)
 3. Show robustness to model misspecification (doubly robust property)
 
 **Key Findings:**
 - Provides benchmark for evaluating variance reduction methods
-- Justifies use of regression adjustment in randomized experiments
+- Justifies use of regression adjustment in randomised experiments
 - AIPW estimators are "doubly robust": consistent if either outcome model OR propensity model is correct
-- Extends to complex randomization schemes (stratified, covariate-adaptive)
+- Extends to complex randomisation schemes (stratified, covariate-adaptive)
 
 **Limitations:**
 - Theoretical framework; practical implementation may not achieve bounds exactly
@@ -353,7 +353,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 - Achieves semiparametric efficiency bound under certain conditions
 
 **Limitations:**
-- Requires careful modeling of correlation structure
+- Requires careful modelling of correlation structure
 - In-experiment adjustment can introduce bias if not properly implemented
 - More complex to implement and validate; likely less stable for large scale prod environments
 
@@ -382,7 +382,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 
 Several variance reduction methods can be combined, but with diminishing returns due to overlapping variance components:
 
-1. **CUPED + Stratification:** Stratification operates at the *randomization* stage while CUPED operates at the *estimation* stage, so they can be combined.
+1. **CUPED + Stratification:** Stratification operates at the *randomisation* stage while CUPED operates at the *estimation* stage, so they can be combined.
 
 **Combined MDE Equation (Stratification + Covariate Adjustment):**
    $$MDE_{combined} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2 \cdot (1-\eta^2_{strat}) \cdot (1-R^2_{adj})}{n}}$$
@@ -460,7 +460,7 @@ Where $c_{AVI} \approx 1.2-1.3$ is the penalty for continuous monitoring, but $E
    The ratio of these widths gives c_AVI. For α = 0.05 and large n:
    $c_{AVI} \approx \sqrt{\frac{2\log(40)}{z_{0.025}^2}} \approx \sqrt{\frac{2 \times 3.69}{3.84}} \approx 1.39$
    
-   In practice, optimized mixture constructions achieve c_AVI ≈ 1.2-1.3.
+   In practice, optimised mixture constructions achieve c_AVI ≈ 1.2-1.3.
 
 3. **E[n_stop] (Expected Stopping Sample Size):** The expected number of observations before the experiment terminates.
 
@@ -511,7 +511,7 @@ For moderate-to-large effects, the early stopping benefit typically dominates, y
 
 ### 3.3 Mixture Sequential Probability Ratio Test (mSPRT)
 
-**Source:** Popularized by Optimizely, Amplitude; based on [Robbins (1974)](https://www.jstor.org/stable/2285511)
+**Source:** Popularised by Optimizely, Amplitude; based on [Robbins (1974)](https://www.jstor.org/stable/2285511)
 
 **Core Idea:** Sequential test using mixture of likelihood ratios over effect sizes.
 
@@ -539,7 +539,7 @@ Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
    where $\bar{X}$ is the observed sample mean difference.
 
 3. **π(θ) - Mixing Distribution:** A prior distribution over possible effect sizes. Common choices:
-   - **Normal:** $\pi(\theta) = N(0, \tau^2)$ - centered at zero with spread τ
+   - **Normal:** $\pi(\theta) = N(0, \tau^2)$ - centred at zero with spread τ
    - **Uniform:** $\pi(\theta) = U[-\delta_{max}, \delta_{max}]$ - equal weight on an interval
    - **Point mass mixture:** discrete weights on specific effect sizes
 
@@ -584,9 +584,9 @@ The paper moves beyond simple P-values and introduces more sophisticated ways to
 
 - Machine Learning Prediction: They developed a data-driven model that looks at the "trajectory" of an experiment. By comparing the first few days of a current test to thousands of historical experiments, the model can predict the probability that the test will eventually "turn green."
 
-- Optimization-Based Method: A framework that balances the risk of a "Type II error" (stopping an experiment that might have eventually won) against the "Utility" (the time and traffic saved by stopping it).
+- Optimisation-Based Method: A framework that balances the risk of a "Type II error" (stopping an experiment that might have eventually won) against the "Utility" (the time and traffic saved by stopping it).
 
-Traditional methods like Conditional Power and SBF are statistically sound, they can be overly conservative or sensitive to noise in short-duration experiments. The ML-based approach outperformed traditional methods in Amazon's environment because it could recognize patterns (like "Monday-effects" or high-variance metrics) that simple statistical formulas ignore. The Optimization approach was the most effective for business leaders because it translated "statistical power" into "business dollars saved."
+Traditional methods like Conditional Power and SBF are statistically sound, they can be overly conservative or sensitive to noise in short-duration experiments. The ML-based approach outperformed traditional methods in Amazon's environment because it could recognise patterns (like "Monday-effects" or high-variance metrics) that simple statistical formulae ignore. The Optimisation approach was the most effective for business leaders because it translated "statistical power" into "business dollars saved."
 
 **Conditional Power Calculation:**
 $$CP = P\left(Z_{final} > z_{\alpha/2} \mid Z_{current}, \theta = \hat{\theta}_{current}\right)$$
@@ -637,7 +637,7 @@ If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be
 | **mSPRT** | Frequentist | Likelihood Ratio | Fold if $LR < \text{Lower Boundary}$ | Stop if $LR > \text{Upper Boundary}$ | Controls Type I error for continuous monitoring; used by Optimizely/Netflix. |
 | **Alpha-Spending (O'Brien-Fleming)** | Frequentist | p-value (Adjusted) | Binding/Non-binding boundaries | Stop if $p < \alpha(t)$ | More conservative early on to avoid "false wins"; requires pre-planned interim looks. |
 | **ML-Prediction (New)** | Machine Learning | Predicted Prob. of Success | Fold if $P(\text{Sig}) < \text{Threshold}$ | Not the primary focus | Uses historical meta-data and time-series trends to "guess" the final outcome. |
-| **Utility Optimization (New)** | Economic / RL | Expected Utility (Gain - Cost) | Fold if $E[U] < 0$ | Stop if $E[U] > \text{Threshold}$ | Balances "Business Value" vs "Wait Time." Unique because it incorporates the *cost of time*. |
+| **Utility Optimisation (New)** | Economic / RL | Expected Utility (Gain - Cost) | Fold if $E[U] < 0$ | Stop if $E[U] > \text{Threshold}$ | Balances "Business Value" vs "Wait Time." Unique because it incorporates the *cost of time*. |
 
 
 ---
@@ -678,12 +678,12 @@ $$\sigma^2_{eff} = \sigma^2\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 - Longer periods reduce carryover bias but increase variance
 
 *Data-Driven Designs (Xiong et al. 2023):* [Data-Driven Switchback Experiments: Theoretical Tradeoffs and Empirical Bayes Designs](https://arxiv.org/pdf/2406.06768)
-- Empirical Bayes approaches can optimize switchback patterns
+- Empirical Bayes approaches can optimise switchback patterns
 - Use historical data to estimate carryover and autocorrelation
 - Adaptive designs outperform fixed patterns by 20-40%
 
 *Multiple-Unit Designs (Missault et al. 2023):* [Robust and efficient multiple-unit switchback experimentation](https://www.arxiv.org/abs/2506.12654)
-- Randomize across both units and time
+- Randomise across both units and time
 - More robust to model misspecification
 - Better variance-bias trade-off
 
@@ -754,16 +754,16 @@ Where $\sigma^2_{paired} \ll 2\sigma^2$ because within-user variation is elimina
 | **Balanced Interleaving** | Ensures that at any rank $k$, the top $k$ items in $I$ contain an equal number of items from top of $A$ and $B$. | Deterministic and easy to implement. | Sensitive to "rank bias"; can be "gamed" if one ranker has a very similar but slightly worse list. |
 | **Team Draft Interleaving** | Mimics captains picking teams. Each ranker takes turns picking their highest-ranked item not yet in $I$. | Highly intuitive and robust against most biases. | Can occasionally lead to sub-optimal lists if one ranker has much lower quality documents. |
 | **Probabilistic Interleaving** | Items are selected based on a probability distribution (often a softmax) over the remaining items in each list. | Eliminates deterministic bias and allows for better theoretical "unbiased" properties. | Higher variance than Team Draft; requires more data to reach statistical significance. |
-| **Optimized / ML-based** | Uses historical click data to weight the "credit" assigned to a click based on its position. | Highest sensitivity (requires the least amount of data). | More complex to implement and requires existing baseline data to train. |
+| **Optimised / ML-based** | Uses historical click data to weight the "credit" assigned to a click based on its position. | Highest sensitivity (requires the least amount of data). | More complex to implement and requires existing baseline data to train. |
 
 
 #### Summary of Click Weighting and Credit Assignment
 
-The paper's click weighting logic centers on the "Skip-Above" heuristic and the concept of "Responsibility." Rather than treating every click as a uniform vote, the authors assign credit by analyzing a click in the context of the documents  the user bypassed. A click on a document $d_i$ at rank $i$ is only considered a strong preference signal if the user explicitly skipped documents at ranks $j < i$. This filters out position bias, where users naturally click the top  result regardless of quality. Mathematically, the preference $S$ for Ranker $A$ over Ranker $B$ for a set of clicks $C$ is calculated by aggregating the relative ranks assigned by each algorithm:
+The paper's click weighting logic centres on the "Skip-Above" heuristic and the concept of "Responsibility." Rather than treating every click as a uniform vote, the authors assign credit by analysing a click in the context of the documents  the user bypassed. A click on a document $d_i$ at rank $i$ is only considered a strong preference signal if the user explicitly skipped documents at ranks $j < i$. This filters out position bias, where users naturally click the top  result regardless of quality. Mathematically, the preference $S$ for Ranker $A$ over Ranker $B$ for a set of clicks $C$ is calculated by aggregating the relative ranks assigned by each algorithm:
 
 $$S(A, B) = \sum_{d \in C} \text{sgn}(\text{rank}_B(d) - \text{rank}_A(d))$$
 
-In more advanced probabilistic models, the weight is refined using the probability that a specific ranker was "responsible" for the clicked document. This approach ensures that if both rankers suggested the same document  at the same rank, the click is neutralized (assigned zero weight) because it provides no discriminative information. 
+In more advanced probabilistic models, the weight is refined using the probability that a specific ranker was "responsible" for the clicked document. This approach ensures that if both rankers suggested the same document  at the same rank, the click is neutralised (assigned zero weight) because it provides no discriminative information. 
 The credit $W$ assigned to Ranker $A$ for a click on document $d$ in the interleaved list $I$ is defined as the  difference in the expected number of times each ranker would have placed that document at that position:
 
 $$W(A|d) = P(d \in I | \text{Ranker } A) - P(d \in I | \text{Ranker } B)$$
@@ -787,7 +787,7 @@ This weighting mechanism is what allows interleaving to detect subtle difference
 
 **Source:** [Debiased balanced interleaving at Amazon Search](https://www.amazon.science/publications/debiased-balanced-interleaving-at-amazon-search)
 
-Balanced Interleaving (BI)—the industry standard for years—has a "fidelity" problem. If Ranker A and Ranker B are very similar (e.g., they only differ by one item at the bottom of the list), the merging process can accidentally favor one ranker over the other due to the way it fills positions. This bias is particularly problematic in "mature" search engines
+Balanced Interleaving (BI)—the industry standard for years—has a "fidelity" problem. If Ranker A and Ranker B are very similar (e.g., they only differ by one item at the bottom of the list), the merging process can accidentally favour one ranker over the other due to the way it fills positions. This bias is particularly problematic in "mature" search engines
 
 **Core Idea:** Address presentation bias in interleaved experiments through debiasing techniques. For every item in the merged list, they calculate the probability that the item would have appeared at that specific position under different random interleaving outcomes. When a user clicks an item, the credit is weighted by the inverse of this probability ($1/p$).
 
@@ -809,7 +809,7 @@ Where $\sigma^2_{paired,debiased}$ accounts for position bias correction.
 
 **Limitations:**
 - More complex implementation than standard interleaving
-- Requires position bias modeling
+- Requires position bias modelling
 - May slightly increase variance due to debiasing
 
 ---
@@ -840,7 +840,7 @@ Apply False Discovery Rate (FDR) controls to ensure that a "lucky" win doesn't r
 
 **Key Challenges Addressed:**
 - **Latency constraints:** Interleaving must not significantly increase response time
-- **Cache coherence:** Treatment/control may have different cache behavior
+- **Cache coherence:** Treatment/control may have different cache behaviour
 - **Load balancing:** Ensure fair comparison under varying system load
 - **Multi-stage systems:** Credit assignment when multiple components contribute to outcome
 
@@ -862,7 +862,7 @@ Apply False Discovery Rate (FDR) controls to ensure that a "lucky" win doesn't r
 
 Traditional A/B tests are great for inference (figuring out why something works) but are expensive because they send 50% of traffic to a potentially inferior version. Adaptive designs (like Bandits) are great for payoff (quickly moving traffic to the winner) but often "break" standard statistical tests.
 
-In the real world, user behavior changes (e.g., weekends vs. weekdays). If an adaptive algorithm naively moves traffic based on early, unrepresentative data, it can create a feedback loop that leads to Simpson’s Paradox, where the algorithm "convinces itself" a bad treatment is good, simply because it was tested during a high-traffic or high-converting time period
+In the real world, user behaviour changes (e.g., weekends vs. weekdays). If an adaptive algorithm naively moves traffic based on early, unrepresentative data, it can create a feedback loop that leads to Simpson’s Paradox, where the algorithm "convinces itself" a bad treatment is good, simply because it was tested during a high-traffic or high-converting time period
 
 **Source:** [Adaptive experimental design and counterfactual inference](https://arxiv.org/abs/2210.14369)
 
@@ -937,11 +937,11 @@ Marketplace experimentation requires dealing with interference—when treating o
 | Goal | Approach | Question Answered | Sections |
 |------|----------|-------------------|----------|
 | **Handle Interference** | Choose the right experimental design | "What is the total treatment effect if we launch to everyone?" | 5.1 |
-| **Decompose Interference** | Use multiple randomization layers | "How much of the effect is direct vs. spillover?" | 5.2 |
+| **Decompose Interference** | Use multiple randomisation layers | "How much of the effect is direct vs. spillover?" | 5.2 |
 
-- **Section 5.1 (Handling):** Focuses on *eliminating or containing* interference to get an unbiased estimate of the total treatment effect. Methods include cluster randomization, synthetic control, and budget-split designs.
+- **Section 5.1 (Handling):** Focuses on *eliminating or containing* interference to get an unbiased estimate of the total treatment effect. Methods include cluster randomisation, synthetic control, and budget-split designs.
 
-- **Section 5.2 (Decomposing):** Focuses on *understanding* interference by separating direct effects (treatment → treated user) from indirect effects (treatment → other users via spillovers). Uses multiple randomization layers.
+- **Section 5.2 (Decomposing):** Focuses on *understanding* interference by separating direct effects (treatment → treated user) from indirect effects (treatment → other users via spillovers). Uses multiple randomisation layers.
 
 Choose **5.1 methods** when you need a launch decision. Choose **5.2 methods** when you need to understand *why* the treatment works (or doesn't).
 
@@ -951,7 +951,7 @@ Choose **5.1 methods** when you need a launch decision. Choose **5.2 methods** w
 
 **Source:** [Experimental Design in Marketplaces](https://projecteuclid.org/journals/statistical-science/advance-publication/Experimental-Design-in-Marketplaces/10.1214/23-STS883.short)
 
-**Core Idea:** To make "launch/no-launch" decisions correctly, they must move away from "naive" A/B testing. By using the right randomization layer and accounting for market dynamics (like price and inventory), platforms can estimate the Total Treatment Effect—what would happen if the feature were rolled out to 100% of the market—rather than just the "within-experiment" difference.
+**Core Idea:** To make "launch/no-launch" decisions correctly, they must move away from "naive" A/B testing. By using the right randomisation layer and accounting for market dynamics (like price and inventory), platforms can estimate the Total Treatment Effect—what would happen if the feature were rolled out to 100% of the market—rather than just the "within-experiment" difference.
 
 **MDE Equation Modification:**
 With interference, the naive estimator has inflated variance:
@@ -961,15 +961,15 @@ Proper marketplace designs reduce or eliminate $\sigma^2_{interference}$:
 $$MDE_{marketplace} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{design}}{n_{eff}}}$$
 
 **Method:**
-- Cluster randomization at market/region level
+- Cluster randomisation at market/region level
 - Synthetic control for counterfactual construction
 - Hybrid approaches combining multiple techniques
 
-#### Cluster Randomization
+#### Cluster Randomisation
 
-**Core Idea:** Randomize at a higher level (markets, regions, time periods) where interference is contained within clusters.
+**Core Idea:** Randomise at a higher level (markets, regions, time periods) where interference is contained within clusters.
 
-**MDE Equation for Cluster Randomization:**
+**MDE Equation for Cluster Randomisation:**
 $$MDE_{cluster} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1 + (m-1)\rho_{ICC})}{n}}$$
 
 Where:
@@ -977,7 +977,7 @@ Where:
 - $\rho_{ICC}$ = intra-cluster correlation (how similar outcomes are within a cluster)
 - The term $(1 + (m-1)\rho_{ICC})$ is the **design effect**—the variance inflation from clustering
 
-**Key Trade-off:** Cluster randomization eliminates interference bias but increases variance because:
+**Key Trade-off:** Cluster randomisation eliminates interference bias but increases variance because:
 - Effective sample size is $n_{eff} = n / (1 + (m-1)\rho_{ICC})$
 - With high ICC or large clusters, you may need 2-10x more data
 
@@ -1019,7 +1019,7 @@ Where:
 | Aspect | Synthetic Control | Difference-in-Differences |
 |--------|------------------|--------------------------|
 | **Control construction** | Weighted combination | Simple average or single unit |
-| **Pre-treatment fit** | Optimized weights | Assumes parallel trends |
+| **Pre-treatment fit** | Optimised weights | Assumes parallel trends |
 | **Best for** | Few treated units, good donor pool | Many treated units, clear parallel trends |
 | **Inference** | Permutation-based | Standard errors |
 
@@ -1027,13 +1027,13 @@ Where:
 
 **Source:** [Trustworthy Online Marketplace Experimentation with Budget-split Design](https://arxiv.org/abs/2012.08724)
 
-**Core Idea:** Split advertiser budgets rather than users to handle marketplace interference. Creates isolated "worlds" preventing budget cross-talk through cannibalization effects. This is a specific application of cluster randomization where the "cluster" is an advertiser's budget.
+**Core Idea:** Split advertiser budgets rather than users to handle marketplace interference. Creates isolated "worlds" preventing budget cross-talk through cannibalisation effects. This is a specific application of cluster randomisation where the "cluster" is an advertiser's budget.
 
 **MDE Equation Modification:**
 Budget-split eliminates interference:
 $$MDE_{budget-split} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{budget}}{n_{impressions}}}$$
 
-Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\rho_{ICC})$ from standard cluster randomization.
+Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\rho_{ICC})$ from standard cluster randomisation.
 
 **Method:**
 1. Split each advertiser's budget into treatment and control portions
@@ -1043,7 +1043,7 @@ Where $\sigma^2_{budget}$ is typically much smaller than $\sigma^2(1 + (n_c-1)\r
 **Key Findings:**
 - Eliminates interference from budget competition
 - Provides unbiased estimates in ad marketplace settings
-- 30-50% MDE reduction vs. standard cluster randomization
+- 30-50% MDE reduction vs. standard cluster randomisation
 
 **Limitations:**
 - Requires budget-level tracking infrastructure
@@ -1070,9 +1070,9 @@ Where $N_{min}$ is minimum daily events (typically 50-100) for pacing convergenc
 #### Hybrid Approaches
 
 Many platforms combine methods:
-1. **Cluster + CUPED:** Cluster randomization for interference, CUPED for within-cluster variance reduction
+1. **Cluster + CUPED:** Cluster randomisation for interference, CUPED for within-cluster variance reduction
 2. **Synthetic Control + Matching:** Match on pre-treatment covariates, then apply synthetic control
-3. **Switchback within Clusters:** Time-based randomization within geographic clusters
+3. **Switchback within Clusters:** Time-based randomisation within geographic clusters
 
 **Key Findings:**
 - No single best approach for all marketplaces
@@ -1080,39 +1080,39 @@ Many platforms combine methods:
 - Hybrid approaches often optimal
 
 **Limitations:**
-- Cluster randomization increases variance due to fewer effective units (design effect)
+- Cluster randomisation increases variance due to fewer effective units (design effect)
 - Synthetic control requires parallel trends assumption and good donor pool
 - Complex to implement and validate
 - May need domain expertise to define appropriate clusters
 - Trade-off: bias reduction vs. variance inflation
 
-### 5.2 Decomposing Interference: Multiple Randomization Designs
+### 5.2 Decomposing Interference: Multiple Randomisation Designs
 
 **Source:** 
 - [Measuring direct and Indirect Impacts in a Multi-Sided Marketplace](https://drive.google.com/file/d/1auP6JpB0DxIQRCIDazum5uFlm9BtTkiS/view)
-- [Multiple Randomization Designs: Estimation and Inference with Interference](https://arxiv.org/abs/2112.13495)
+- [Multiple Randomisation Designs: Estimation and Inference with Interference](https://arxiv.org/abs/2112.13495)
 
-**Core Idea:** Use multiple layers of randomization to identify direct and indirect effects.
+**Core Idea:** Use multiple layers of randomisation to identify direct and indirect effects.
 
 If you give a 20% discount to a rider in Uber, they are more likely to book a ride (direct effect).
 
 Because that rider booked a ride, there is one fewer driver available for everyone else. This might increase wait times for the "Control" group, making the discount look more successful than it actually is by "stealing" supply from the control (indirect effect).
 
 **MDE Equation Modification:**
-For direct effect estimation with two-stage randomization:
+For direct effect estimation with two-stage randomisation:
 $$MDE_{direct} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2_{direct}}{n_1 \cdot n_2}}$$
 
 Where $n_1$ = number of clusters, $n_2$ = individuals per cluster.
 
 **Method:**
-1. First randomization: Assign clusters to treatment intensity
-2. Second randomization: Assign individuals within clusters
+1. First randomisation: Assign clusters to treatment intensity
+2. Second randomisation: Assign individuals within clusters
 3. Estimate direct effects, spillovers, and equilibrium effects separately
 
 **Key Findings:**
 - Can decompose total effect into components
 - Enables understanding of interference mechanisms
-- More informative than single randomization
+- More informative than single randomisation
 
 **Limitations:**
 - More complex designs may increase variance for any single effect
@@ -1193,20 +1193,20 @@ Under the **Network Interference** assumption, the complexity collapses:
 
 | Method | Section | MDE Mechanism | Interference Handling | Complexity | Best Use Case |
 |--------|---------|---------------|----------------------|------------|---------------|
-| **Cluster Randomization** | 5.1 | Reduce within-cluster interference | Good | Medium | Geographic markets |
+| **Cluster Randomisation** | 5.1 | Reduce within-cluster interference | Good | Medium | Geographic markets |
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
-| **Multiple Randomization** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
+| **Multiple Randomisation** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
 | **Network-Aware Bandits** | 5.3 | Model spillovers | Good | High | Social networks |
 
 **Marketplace Design Selection Guide:**
 
 | Scenario | Recommended Method | Why |
 |----------|-------------------|-----|
-| Ad marketplace with budget competition | Budget-Split | Eliminates cannibalization |
+| Ad marketplace with budget competition | Budget-Split | Eliminates cannibalisation |
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
-| Many small markets | Cluster Randomization | Standard approach, sufficient power |
-| Need to understand spillovers | Multiple Randomization | Decomposes direct/indirect effects |
+| Many small markets | Cluster Randomisation | Standard approach, sufficient power |
+| Need to understand spillovers | Multiple Randomisation | Decomposes direct/indirect effects |
 | Social network effects | Network-Aware Bandits | Models interference structure |
 
 ---
@@ -1239,7 +1239,7 @@ Naive pooling ignores this heterogeneity; the paper addresses how to learn *desp
 2. **Hierarchical models:** Share information through partial pooling
    $$\theta_i \sim N(\mu, \tau^2)$$ where $\mu$ is the population mean effect and $\tau^2$ captures between-experiment variance
 3. **Bayesian updating:** Use posterior from past experiments as prior for current
-4. **Time-series modeling:** Account for temporal dynamics in effect sizes
+4. **Time-series modelling:** Account for temporal dynamics in effect sizes
 
 **Effective Prior Sample Size:**
 The information from $K$ historical experiments with average sample size $\bar{n}$ contributes:
@@ -1291,10 +1291,10 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Debiased Interleaving** | 4.4 | Design Innovation | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
 | **Large-Scale Interleaving** | 4.5 | Design Innovation | Paired comparison at scale | 50-90% | High | Production ranking |
 | **Adaptive Design** | 4.6 | Design Innovation | Optimal allocation | Varies | High | Heterogeneous effects |
-| **Cluster Randomization** | 5.1 | Marketplace | Reduce interference | Varies | Medium | Geographic markets |
+| **Cluster Randomisation** | 5.1 | Marketplace | Reduce interference | Varies | Medium | Geographic markets |
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
-| **Multiple Randomization** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
+| **Multiple Randomisation** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
 | **Network-Aware Bandits** | 5.3 | Marketplace | Model spillovers | Varies | High | Social networks |
 | **Cross-Experiment** | 6.1 | Learning | $n \rightarrow n + n_{prior}$ | 20-40% | High | Historical experiments |
 
@@ -1320,10 +1320,10 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 │     ├─ Yes → Consider:                                                      │
 │     │        ├─ Budget-split (ad marketplaces, 5.1)                         │
 │     │        ├─ Switchback (time-based interference, 4.1)                   │
-│     │        ├─ Cluster randomization (geographic, 5.1)                     │
-│     │        ├─ Multiple randomization (effect decomposition, 5.2)          │
+│     │        ├─ Cluster randomisation (geographic, 5.1)                     │
+│     │        ├─ Multiple randomisation (effect decomposition, 5.2)          │
 │     │        └─ Network-aware bandits (social effects, 5.3)                 │
-│     └─ No  → Standard randomization + variance reduction                    │
+│     └─ No  → Standard randomisation + variance reduction                    │
 │                                                                             │
 │  4. Do you need continuous monitoring?                                      │
 │     ├─ Yes → mSPRT (3.3) or Always Valid Inference (3.2)                    │
@@ -1392,7 +1392,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 
 3. **Develop switchback capability**
    - For marketplace-level experiments
-   - Use data-driven design optimization
+   - Use data-driven design optimisation
 
 ### 8.3 Long-Term Platform Capabilities
 
@@ -1440,7 +1440,7 @@ Where $SE(\hat{\tau}) = \sqrt{\frac{\sigma^2_T}{n} + \frac{\sigma^2_C}{n}} = \sq
 Given outcome $Y$ and covariate $X$:
 $$\hat{Y}_{adj} = Y - \theta(X - E[X])$$
 
-The variance-minimizing $\theta$ is:
+The variance-minimising $\theta$ is:
 $$\theta^* = \frac{Cov(Y, X)}{Var(X)}$$
 
 This gives:
