@@ -613,7 +613,11 @@ The efficient variance $\sigma^2_{eff}$ is derived from the **efficient influenc
 
 ---
 
-### 2.7 Variance Reduction Combining Pre-Experiment and In-Experiment Data
+### 2.7 Advanced CUPED Extensions (Consolidated)
+
+**Note:** Sections 2.7.1-2.7.3 consolidate three related advanced extensions to CUPED. Each addresses a specific challenge; choose based on your situation rather than applying all.
+
+#### 2.7.1 Combining Pre-Experiment and In-Experiment Data
 
 **Source:** [Variance reduction combining pre-experiment and in-experiment data](https://arxiv.org/abs/2410.09027)
 
@@ -652,7 +656,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 
 ---
 
-### 2.8 Variance Reduction for Sparse and Delayed Outcomes
+#### 2.7.2 Variance Reduction for Sparse and Delayed Outcomes
 
 **Source:** [Variance Reduction Using In-Experiment Data: Efficient and Targeted Online Measurement for Sparse and Delayed Outcomes](https://dl.acm.org/doi/10.1145/3580305.3599928) 
 
@@ -712,7 +716,7 @@ Where $\rho_{surrogate}$ is the correlation between an in-experiment surrogate m
 
 ---
 
-### 2.9 Neural Covariate Adjustment (Deep-CUPED)
+#### 2.7.3 Neural Covariate Adjustment (Deep-CUPED)
 
 **Source:** [Neural Covariate Adjustment for Online Experiments](https://arxiv.org/abs/2306.01230) (Industry research from Meta/ByteDance, 2023)
 
@@ -771,9 +775,22 @@ Where $R^2_{neural} > R^2_{ML} > R^2_{linear}$ because neural networks can captu
 - **CUPAC (2.2):** Both use ML; neural uses deeper architectures
 - **Semiparametric (2.6):** Neural methods can approach efficiency bounds with sufficient data
 
+#### Advanced Extensions: Consolidated Comparison
+
+| Extension | Best For | Variance Reduction | Complexity | Key Risk |
+|-----------|----------|-------------------|------------|----------|
+| **2.7.1 Pre+In Combined** | Volatile environments | 30-60% | Medium | Bias from in-experiment adjustment |
+| **2.7.2 Surrogate-Based** | Sparse/delayed outcomes | 40-70% | Medium | Surrogate gaming, assumption violations |
+| **2.7.3 Neural (Deep-CUPED)** | High-dimensional features | 40-70% | High | Infrastructure cost, overfitting |
+
+**Decision Guide:** Start with standard CUPED. If R² < 0.3 and you have rich features, try CUPAC. Only invest in these advanced extensions if:
+- Standard methods leave substantial unexplained variance
+- The specific challenge (volatility, sparsity, high-dimensionality) matches the extension
+- You have infrastructure and expertise to maintain the more complex system
+
 ---
 
-### 2.10 Robust Estimation for Heavy-Tailed Metrics
+### 2.8 Robust Estimation for Heavy-Tailed Metrics
 
 **Source:** [Robust A/B Testing with Heavy-Tailed Rewards](https://arxiv.org/abs/2205.15949) (Building on Bhamidi et al., Lee et al., 2022-2023)
 
@@ -857,7 +874,7 @@ Typical combined reduction: 50-80% for revenue metrics.
 
 ---
 
-### 2.11 Variance Reduction Methods: Comparison Table
+### 2.9 Variance Reduction Methods: Comparison Table
 
 | Method | Section | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
 |--------|---------|------------------|---------------------------|------------|-------------------|---------------|
@@ -2383,6 +2400,108 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 5. **Privacy-preserving methods:** MDE reduction under differential privacy constraints
 
 6. **Interleaving extensions:** Applying interleaved testing beyond ranking systems
+
+---
+
+## 10. Winner's Curse and Effect Size Bias
+
+**MDE reduction affects not just detection power but also the bias of estimated effect sizes.** This section addresses a critical but often overlooked issue.
+
+### The Winner's Curse Problem
+
+When running many experiments or testing multiple metrics, statistically significant results tend to overestimate the true effect size. This is the "winner's curse" — the experiments that "win" (achieve significance) are disproportionately those where random noise happened to inflate the observed effect.
+
+**How MDE Reduction Interacts with Winner's Curse:**
+
+| Scenario | Effect on Winner's Curse | Explanation |
+|----------|-------------------------|-------------|
+| **Lower MDE, same α** | Reduced winner's curse | Smaller effects can be detected, so less selection on noise |
+| **Lower MDE via variance reduction** | Reduced winner's curse | Less noise means observed effects closer to true effects |
+| **Lower MDE via sequential testing** | Potentially increased | Early stopping can exacerbate selection bias |
+| **Multiple testing correction** | Reduced winner's curse | Higher bar for significance reduces false discoveries |
+
+### Quantifying the Bias
+
+For an experiment with true effect $\tau$ and standard error $SE$, the expected observed effect conditional on significance is:
+
+$E[\hat{\tau} | \text{significant}] = \tau + SE \cdot \frac{\phi(z_\alpha - \tau/SE)}{\Phi(\tau/SE - z_\alpha)}$
+
+Where $\phi$ and $\Phi$ are the standard normal PDF and CDF. The bias term increases when:
+- True effect $\tau$ is close to the MDE (marginal significance)
+- Standard error $SE$ is large (high variance)
+- Significance threshold $z_\alpha$ is high (stringent α)
+
+### Mitigation Strategies
+
+| Strategy | How It Helps | Implementation |
+|----------|--------------|----------------|
+| **Pre-registration** | Reduces selective reporting | Commit to primary metric before experiment |
+| **Shrinkage estimators** | Pulls estimates toward prior | Bayesian methods, empirical Bayes |
+| **Replication** | Confirms effects in independent sample | Hold-out validation, follow-up experiments |
+| **Effect size adjustment** | Corrects for selection bias | Use conditional MLE or median unbiased estimators |
+| **Variance reduction** | Reduces noise, hence bias | CUPED, stratification (primary benefit) |
+
+**Key Insight:** Variance reduction methods like CUPED reduce winner's curse by shrinking the noise component. A 50% variance reduction doesn't just improve power — it also makes observed effects more accurate estimates of true effects.
+
+---
+
+## 11. Variance Reduction for Heterogeneous Treatment Effects (HTE)
+
+**Source:** [Estimation and Inference of Heterogeneous Treatment Effects using Random Forests](https://arxiv.org/abs/1510.04342) by Athey & Wager (2018); [Generalized Random Forests](https://arxiv.org/abs/1610.01271) by Athey, Tibshirani & Wager (2019)
+
+### The HTE Challenge
+
+Standard MDE analysis assumes a single average treatment effect (ATE). But treatment effects often vary across subgroups:
+- New vs. returning users
+- High vs. low engagement segments
+- Geographic regions
+- Device types
+
+**Subgroup analysis inflates MDE** because:
+- Smaller sample sizes per subgroup
+- Multiple testing correction required
+- Higher variance within subgroups
+
+### Variance Reduction for Subgroup Analysis
+
+| Method | Mechanism | MDE Impact | Complexity |
+|--------|-----------|------------|------------|
+| **Stratified CUPED** | Apply CUPED within each subgroup | 20-50% reduction per subgroup | Low |
+| **Pooled covariate model** | Train single model, apply to subgroups | 30-60% reduction, borrows strength | Medium |
+| **Causal Forests** | ML-based HTE estimation with built-in variance reduction | Adaptive to effect heterogeneity | High |
+| **Bayesian hierarchical** | Shrinkage across subgroups | Reduces false discoveries | High |
+
+### Causal Forests for HTE
+
+**Core Idea:** Causal Forests (Athey & Wager) extend random forests to estimate conditional average treatment effects (CATE) $\tau(x) = E[Y(1) - Y(0) | X = x]$.
+
+**How Causal Forests Reduce Variance:**
+1. **Honesty:** Separate samples for tree structure and effect estimation reduces overfitting
+2. **Subsampling:** Bootstrap aggregation reduces variance of individual tree estimates
+3. **Adaptive splitting:** Trees split on variables that maximise treatment effect heterogeneity, not just outcome prediction
+
+**MDE for Subgroup with Causal Forests:**
+$MDE_{subgroup} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{Var(\hat{\tau}(x))}{n_{subgroup}}}$
+
+Where $Var(\hat{\tau}(x))$ is the variance of the CATE estimate, which Causal Forests estimate directly.
+
+### Practical Guidance for HTE Analysis
+
+| Question | If YES | If NO |
+|----------|--------|-------|
+| Do you expect effect heterogeneity? | Use Causal Forests or stratified analysis | Report ATE only |
+| Is subgroup pre-specified? | No multiple testing correction needed | Apply Bonferroni or FDR correction |
+| Is subgroup sample size >1000? | Standard CUPED within subgroup | Use pooled model or hierarchical shrinkage |
+| Do you need interpretable subgroups? | Use decision tree or rule-based methods | Causal Forests for best power |
+
+### HTE-Aware Experiment Design
+
+1. **Power for subgroups:** Size experiment for smallest subgroup of interest, not overall ATE
+2. **Stratified randomisation:** Ensure balance within subgroups, not just overall
+3. **Pre-specify subgroups:** Avoid post-hoc subgroup fishing
+4. **Use CUPED within subgroups:** Apply variance reduction at subgroup level
+
+**Connection to Section 2.4 (Stratification):** Stratification at randomisation ensures balanced subgroups; CUPED at analysis reduces variance within subgroups. Both are complementary for HTE analysis.
 
 ---
 
