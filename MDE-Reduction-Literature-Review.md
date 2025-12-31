@@ -955,7 +955,77 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 
 ---
 
-### 4.7 Experimental Design Methods: Comparison Table
+### 4.7 Bias Correction for Ranking Interference
+
+**Source:** [A Bias Correction Approach for Interference in Ranking Experiments](https://dl.acm.org/doi/abs/10.1287/mksc.2022.0046) (Marketing Science, 2023)
+
+**Core Idea:** In ranking experiments (search, recommendations, ads), items compete for user attention within the same page. When a treatment changes one item's position, it affects the visibility and click probability of *all other items*—creating interference within the ranking. This paper provides a bias correction framework for estimating true item-level treatment effects.
+
+**The Ranking Interference Problem:**
+Consider testing a new ad creative:
+- **Naive view:** Compare click rates between treatment (new creative) and control (old creative)
+- **Reality:** If the new creative is more attractive, it "steals" clicks from other items on the page
+- **Bias:** The treatment effect is overestimated because control items performed worse due to competition, not because the treatment is better
+
+**Types of Ranking Interference:**
+
+| Interference Type | Mechanism | Example |
+|------------------|-----------|---------|
+| **Position effects** | Higher positions get more attention | Item moved from position 3→1 gets more clicks |
+| **Attention competition** | Attractive items draw attention from neighbours | Eye-catching ad reduces clicks on adjacent items |
+| **Budget effects** | Users have limited click/purchase budget | Extra click on treatment item = fewer clicks elsewhere |
+| **Substitution** | Similar items compete for same need | Promoting one product cannibalises similar products |
+
+**MDE Equation Modification:**
+The naive estimator has interference bias:
+$\hat{\tau}_{naive} = \tau_{true} + \underbrace{\tau_{interference}}_{\text{bias from item competition}}$
+
+The corrected estimator accounts for position and attention effects:
+$\hat{\tau}_{corrected} = \hat{\tau}_{naive} - \hat{\tau}_{interference}$
+
+Where $\hat{\tau}_{interference}$ is estimated using a structural model of user attention and click behaviour.
+
+**Method:**
+1. **Model user attention:** Specify how attention is allocated across positions (e.g., cascade model, position-based model)
+2. **Estimate attention parameters:** Use historical click data to calibrate the model
+3. **Compute counterfactual:** What would other items' performance be if treatment item weren't present?
+4. **Correct treatment effect:** Subtract the interference component from naive estimate
+
+**Attention Models for Bias Correction:**
+
+| Model | Assumption | Best For |
+|-------|------------|----------|
+| **Position-based** | Click probability depends only on position | Simple rankings with clear position effects |
+| **Cascade** | Users scan top-down, stop after satisfying click | Search results, sequential browsing |
+| **Attention allocation** | Fixed attention budget distributed across items | Ad displays, recommendation carousels |
+| **Examination hypothesis** | Clicks = P(examine) × P(click\|examine) | Separating position from relevance effects |
+
+**Key Findings:**
+- Naive ranking experiments can overestimate treatment effects by 20-50%
+- Bias is larger when treatment items are highly attractive
+- Bias correction enables accurate item-level causal inference
+- Particularly important for ad effectiveness measurement
+
+**Limitations:**
+- Requires specifying and estimating attention model
+- Model misspecification can introduce new biases
+- Computationally intensive for large catalogues
+- May not capture all interference mechanisms (e.g., cross-session effects)
+
+**Connection to Other Methods:**
+- **Debiased Interleaving (4.4):** Addresses presentation bias in A/B comparisons; this addresses item-level interference
+- **Interleaved Testing (4.3):** Reduces MDE through paired comparisons; this corrects bias in effect estimates
+- **Marketplace Interference (5.1):** Addresses user-level interference; this addresses item-level interference within a single user's view
+
+**When to Use:**
+- Measuring individual item/ad treatment effects
+- Items compete for attention on the same page
+- Treatment is expected to significantly change item attractiveness
+- Accurate causal attribution is required (e.g., ad billing, content creator payments)
+
+---
+
+### 4.8 Experimental Design Methods: Comparison Table
 
 | Method | Section | MDE Mechanism | MDE Reduction | Complexity | Best Use Case |
 |--------|---------|---------------|---------------|------------|---------------|
@@ -965,12 +1035,13 @@ Where $n_{eff} > n$ through optimal allocation and counterfactual imputation.
 | **Debiased Interleaving** | 4.4 | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
 | **Large-Scale Interleaving** | 4.5 | Paired comparison at scale | 50-90% | High | Production ranking systems |
 | **Adaptive Design** | 4.6 | Optimal allocation | Varies | High | Heterogeneous effects |
+| **Ranking Interference Correction** | 4.7 | Item-level bias correction | Bias correction | High | Ad/item-level attribution |
 
 **Interleaving Methods: Detailed Comparison**
 
-The three interleaving approaches (4.4, 4.5, 4.6) represent an evolution from foundational methodology to production-ready systems:
+The three interleaving approaches (4.3, 4.4, 4.5) represent an evolution from foundational methodology to production-ready systems:
 
-| Aspect | Standard Interleaving (4.4) | Debiased Interleaving (4.5) | Large-Scale Interleaving (4.6) |
+| Aspect | Standard Interleaving (4.3) | Debiased Interleaving (4.4) | Large-Scale Interleaving (4.5) |
 |--------|----------------------------|----------------------------|-------------------------------|
 | **Primary Focus** | Foundational methodology | Bias correction | Production deployment |
 | **Problem Solved** | Reduce MDE via paired comparisons | Fix "fidelity" bias when rankers are similar | Scale to production with many candidates |
@@ -1543,6 +1614,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Debiased Interleaving** | 4.4 | Design Innovation | Bias-corrected pairing | 50-90% | Medium-High | Search systems |
 | **Large-Scale Interleaving** | 4.5 | Design Innovation | Paired comparison at scale | 50-90% | High | Production ranking |
 | **Adaptive Design** | 4.6 | Design Innovation | Optimal allocation | Varies | High | Heterogeneous effects |
+| **Ranking Interference Correction** | 4.7 | Design Innovation | Item-level bias correction | Bias correction | High | Ad/item attribution |
 | **Cluster Randomisation** | 5.1 | Marketplace | Reduce interference | Varies | Medium | Geographic markets |
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
