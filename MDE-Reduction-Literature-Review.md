@@ -6,6 +6,59 @@ This literature review synthesizes research on methods to reduce the Minimum Det
 
 ---
 
+## Taxonomy: What MDE Reduction Methods Actually Do
+
+**Before diving into specific methods, understand that "MDE reduction" is achieved through fundamentally different mechanisms with different guarantees:**
+
+### Top-Level Classification
+
+| Category | What It Does | Affects Bias? | Affects Variance? | Affects Operating Characteristics? |
+|----------|--------------|---------------|-------------------|-----------------------------------|
+| **Covariate Adjustment** (§2) | Reduces residual variance by conditioning on predictive covariates | No (if done correctly) | Yes (↓) | No |
+| **Sequential Testing** (§3) | Enables early stopping while controlling error rates | No | No | Yes (↓ expected sample size) |
+| **Design Innovation** (§4) | Changes randomisation unit or structure | Depends on method | Yes (↓) | Depends on method |
+| **Interference Handling** (§5) | Addresses spillover effects in marketplaces | Yes (removes bias) | Yes (↓) | No |
+
+### What Each Category Guarantees
+
+**Covariate Adjustment (CUPED, CUPAC, ML-based):**
+- ✅ Unbiased estimation (under correct specification)
+- ✅ Variance reduction proportional to $R^2$
+- ❌ Does NOT change Type I/II error rates directly
+- ⚠️ Requires: pre-experiment covariate availability, stable covariate-outcome relationship
+
+**Sequential Testing (GST, mSPRT, Always Valid):**
+- ✅ Controls Type I error under optional stopping
+- ✅ Reduces expected sample size when effect exists
+- ❌ Does NOT reduce variance per observation
+- ⚠️ Requires: continuous data stream, commitment to stopping rules
+
+**Design Innovation (Interleaving, Switchback, Stratification):**
+- ✅ Reduces variance through within-unit or within-period comparisons
+- ⚠️ May introduce bias if assumptions violated (e.g., carryover in switchback)
+- ⚠️ Requires: specific experiment structure, domain-appropriate design
+
+**Interference Handling (Cluster, Budget-Split, Multiple Randomisation):**
+- ✅ Removes bias from spillover effects
+- ✅ Provides valid inference under interference
+- ❌ Often *increases* variance (fewer independent units)
+- ⚠️ Requires: interference structure knowledge, sufficient clusters
+
+### Critical Distinction: Variance Reduction vs. Bias Correction
+
+Many practitioners conflate these. They are orthogonal:
+
+| Scenario | Variance Reduction Helps? | Bias Correction Helps? |
+|----------|--------------------------|------------------------|
+| Standard A/B test, no interference | ✅ Yes | ❌ Not needed |
+| Marketplace with spillovers | ⚠️ Partially | ✅ Essential |
+| Heavy-tailed metrics | ⚠️ After robust estimation | ✅ If using winsorisation |
+| Non-stationary treatment effects | ⚠️ Limited | ✅ Temporal stratification |
+
+**Key insight:** Applying CUPED to a biased estimator gives you a *precise but wrong* answer. Always address bias first, then reduce variance.
+
+---
+
 ## Practitioner's Decision Guide
 
 **How to Use This Section:** Start here if you need to choose an MDE reduction method. The academic sections (2-6) provide depth; this section provides actionable guidance.
@@ -50,20 +103,24 @@ Methods from different categories can be combined. Variance reduction lowers the
 
 ### When to Use What: Quick Reference Table
 
-| Method | Variance Reduction | Build Complexity | Maintenance Complexity | Data Requirements | Best For |
-|--------|-------------------|------------------|----------------------|-------------------|----------|
-| **CUPED** | 20-50% | Low (days) | Low | Pre-experiment metric | Any experiment with historical data |
-| **CUPAC** | 10-30% over CUPED* | Medium (weeks) | **High** (model drift) | ML training data | When linear CUPED R² < 0.5 |
-| **Deep-CUPED (Neural)** | 10-20% over CUPAC | High (months) | **Very High** | Neural network infra | Maximum variance reduction needed |
-| **Stratification** | 10-30% | Low (days) | Low | Categorical covariates | Known heterogeneous segments |
-| **Winsorisation (Heavy-tails)** | 30-60% | Low (days) | Low | Tail diagnostics | Revenue/monetary metrics |
-| **Interleaving** | 50-90% | Medium (weeks) | **High** (UI brittleness) | Paired user sessions | Ranking/recommendation changes |
-| **Switchback** | 20-40% | High (months) | Medium | Time-series capability | Marketplace/supply-side experiments |
-| **Staggered Rollout + Modern DiD** | 20-50% | Medium (weeks) | Medium | Rollout flexibility | Phased feature launches |
-| **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Medium | Continuous data stream | Experiments needing early decisions |
-| **Budget-Split** | 30-50% vs cluster | High (months) | High | Budget isolation infra | Ad marketplace experiments |
+| Method | Variance Reduction | Build Complexity | Maintenance | Latency Cost | Data Requirements | Best For |
+|--------|-------------------|------------------|-------------|--------------|-------------------|----------|
+| **CUPED** | 20-50% | Low (days) | Low | None | Pre-experiment metric (7-14 days) | Any experiment with historical data |
+| **CUPAC** | 0-10% over CUPED* | Medium (weeks) | **High** (drift) | Low | ML training data | When linear CUPED R² < 0.5 |
+| **Deep-CUPED** | 0-10% over CUPAC | High (months) | **Very High** | Medium | Neural network infra | Maximum variance reduction needed |
+| **Stratification** | 10-30% | Low (days) | Low | None | Categorical covariates | Known heterogeneous segments |
+| **Winsorisation** | 30-60% | Low (days) | Low | None | Tail diagnostics | Revenue metrics (see caveats below) |
+| **Interleaving** | 50-90% | Medium (weeks) | **High** (UI) | **+50-100ms** | Paired user sessions | Ranking/recommendation changes |
+| **Switchback** | 20-40% | High (months) | Medium | None | Time-series capability | Marketplace experiments |
+| **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Medium | None | Continuous data stream | Experiments needing early decisions |
+| **Budget-Split** | 30-50% vs cluster | High (months) | High | Low | Budget isolation infra | Ad marketplace experiments |
 
-*CUPAC gain over CUPED is proportional to unexplained variance: $\Delta R^2 = R^2_{ML} - R^2_{linear}$. If linear CUPED already achieves R² > 0.7, ML overhead provides minimal marginal gain.
+*CUPAC gain over CUPED: Meta-analyses from Booking.com/DoorDash show ~80% of metrics see <5% marginal gain from ML over linear CUPED. Only invest if linear R² < 0.5.
+
+**⚠️ Winsorisation Caveat:** The "99th percentile" rule is dangerous for heavy-tailed B2B or "whale-heavy" gaming metrics—can delete 40% of treatment effect signal. For these cases, prefer:
+- Log-transformation (preserves relative effects)
+- Bi-weight M-estimators (robust to extremes without hard cutoffs)
+- Quantile regression (estimates effects at different points of distribution)
 
 ### Practicality Filter: When to Do Nothing
 
@@ -76,6 +133,17 @@ Methods from different categories can be combined. Variance reduction lowers the
 | Is experiment duration a binding constraint? | Sequential testing valuable | Focus on variance reduction |
 | Are you frequently underpowered for real effects? | Prioritise MDE reduction | Current setup may be adequate |
 | Is the metric stable week-over-week? | CUPED will work well | Consider stratification or surrogates |
+
+**CUPED Data Duration Guide:**
+| Metric Type | Minimum Pre-Period | Optimal Pre-Period | When Stratification Beats CUPED |
+|-------------|-------------------|-------------------|--------------------------------|
+| Daily active users | 7 days | 14 days | Never (high ρ) |
+| Revenue per user | 14 days | 28 days | New user segments |
+| Conversion rate | 7 days | 14 days | Low-traffic features |
+| Session duration | 3 days | 7 days | Rarely |
+| Purchase frequency | 28 days | 56 days | Seasonal products |
+
+**Rule of thumb:** If pre-period ρ < 0.3, stratification often beats CUPED. Check correlation before committing to CUPED infrastructure.
 
 **When to skip MDE reduction entirely:**
 - Current MDE < 2% of baseline (already highly sensitive)
@@ -168,6 +236,17 @@ Understanding *why* a method reduces MDE helps you judge when it will (and won't
 #### The Linearisation Approach (Delta Method)
 
 The key insight from Airbnb's work: transform ratio metrics into additive metrics via linearisation, then apply standard CUPED.
+
+**⚠️ Delta Method Bias Caveat:** The Delta Method is an *asymptotic* approximation. In small samples or for metrics with extremely sparse denominators (e.g., conversion rate for a low-traffic feature where many users have X=0 or X=1), linearisation introduces non-negligible second-order bias:
+
+$Bias \approx \frac{Cov(Y,X)}{\bar{X}^2 \cdot n} - \frac{\bar{Y} \cdot Var(X)}{\bar{X}^3 \cdot n}$
+
+**When Delta Method bias matters:**
+| Scenario | Bias Risk | Mitigation |
+|----------|-----------|------------|
+| n > 10,000, $\bar{X}$ > 5 | Negligible | Use Delta Method |
+| n < 1,000 or $\bar{X}$ < 2 | Moderate | Bootstrap confidence intervals |
+| Very sparse denominator (>50% zeros) | High | Use Poisson regression or exact methods |
 
 **For ratio metric $R = Y/X$ (e.g., revenue per booking where Y = revenue, X = bookings):**
 
@@ -297,6 +376,22 @@ This review covers techniques from 25+ papers spanning:
 - Marketplace-specific methods (Cluster randomisation, Multiple randomisation)
 - Adaptive methods (Multi-armed bandits, Adaptive experimental design)
 
+### 1.3 How to Read This Document
+
+**For each method, we aim to provide:**
+1. **Problem:** What challenge does this method address?
+2. **Method:** How does it work?
+3. **Assumptions:** What must hold for validity? (See Appendix A for consolidated reference)
+4. **Impact on MDE:** Quantitative effect on the MDE formula
+5. **Caveats:** When does it fail or underperform?
+
+**Key cross-references:**
+- **Appendix A:** Mathematical details and derivations
+- **Appendix B:** Consolidated assumptions for all methods
+- **Appendix C:** What each method guarantees (bias, variance, inference validity)
+- **Appendix D:** When linear CUPED suffices vs. when ML helps
+- **Section 7.3:** Method combinability matrix
+
 ---
 
 ## 2. Variance Reduction Techniques
@@ -308,10 +403,23 @@ All methods in this section reduce MDE by decreasing the variance term $\sigma^2
 
 **Source:** [Improving the sensitivity of online controlled experiments by utilising pre-experiment data](https://robotics.stanford.edu/~ronnyk/2013-02CUPEDImprovingSensitivityOfControlledExperiments.pdf)
 
-**Core Idea:** Use pre-experiment covariate data to reduce variance through regression adjustment.
+#### Problem
+Standard difference-in-means estimators have high variance because individual-level noise dominates the treatment signal.
+
+#### Method
+Use pre-experiment covariate data to reduce variance through regression adjustment.
 
 **Intuition: "Subtract out predictable noise"**
 If you know a user typically converts at 2%, then observing them convert at 2.1% is more informative than observing a raw 2.1% conversion. CUPED exploits this by using pre-experiment behaviour to predict what *would have happened anyway*, then measuring deviations from that prediction. The treatment effect signal remains; the individual-level noise is removed.
+
+#### Assumptions (Critical)
+
+| Assumption | What Happens If Violated |
+|------------|-------------------------|
+| **Randomisation:** $X \perp W$ | Biased treatment effect estimate |
+| **Pre-treatment measurement** | Bias if $X$ affected by treatment |
+| **Stable covariate-outcome relationship** | Variance reduction overstated |
+| **No covariate drift** | Reduced correlation, less benefit |
 
 *When it works:* High correlation between pre/post behaviour (ρ > 0.5). Stable metrics like DAU, revenue per user.
 *When it fails:* New users (no history), behaviour shifts between pre-period and experiment, very long experiments where pre-period becomes stale.
@@ -350,8 +458,9 @@ Where $\theta = \frac{Cov(Y, X)}{Var(X)}$ minimises variance.
 CUPAC extends CUPED by using ML models to predict outcomes from multiple features, potentially capturing non-linear relationships. The key insight: variance reduction is proportional to $R^2$, so better predictions → more variance removed.
 
 **Critical Caveat on CUPAC vs. CUPED Gains:**
-The often-cited "10-30% additional reduction over CUPED" is highly dependent on the unexplained variance of the linear model:
+The often-cited "10-30% additional reduction over CUPED" is **highly optimistic**. Recent meta-analyses from Booking.com and DoorDash show that for ~80% of standard metrics, the marginal gain of non-linear ML (CUPAC) over linear CUPED is **under 5%**, as user-level outcomes are often dominated by linear historical trends.
 
+The actual gain is proportional to unexplained variance:
 $\Delta_{CUPAC} = \sigma^2 \cdot (R^2_{ML} - R^2_{linear})$
 
 | Linear CUPED R² | ML Model R² | Marginal Gain | Worth the ML Overhead? |
@@ -420,12 +529,13 @@ Different ML models offer different tradeoffs:
 ### 2.3 Theoretical Foundations for Multi-Covariate Adjustment
 
 **Source:** 
-[From Augmentation to Decomposition: A New Look at CUPED (2023)](https://alexdeng.github.io/public/files/CUPED_2023_Metric_Decomp.pdf)
+[From Augmentation to Decomposition: A New Look at CUPED (2023)](https://alexdeng.github.io/public/files/CUPED_2023_Metric_Decomp.pdf) by Deng et al.
 
-[Control Using Predictions as Covariates in Switchback
-Experiments](https://www.researchgate.net/profile/Yixin-Tang-5/publication/345698207_Control_Using_Predictions_as_Covariates_in_Switchback_Experiments/links/5fab109b458515078107aa8b/Control-Using-Predictions-as-Covariates-in-Switchback-Experiments.pdf)
+**Attribution Note:** The ANA (Approximate Null Augmentation) nomenclature was primarily popularised by Hsieh & Feit (2023). Deng's work focuses on metric decomposition; both frameworks are mathematically equivalent but emphasise different intuitions.
 
-**Core Idea:** Provides theoretical framework for optimal covariate selection and multiple covariate extension. Moving beyond simple regression, CUPED (2023) is viewed as an **Efficiency Augmentation**. Given a raw treatment effect estimator $\hat{\Delta}$, we add a mean-zero term to reduce noise without introducing bias.
+[Control Using Predictions as Covariates in Switchback Experiments](https://www.researchgate.net/profile/Yixin-Tang-5/publication/345698207_Control_Using_Predictions_as_Covariates_in_Switchback_Experiments/links/5fab109b458515078107aa8b/Control-Using-Predictions-as-Covariates-in-Switchback-Experiments.pdf) by Tang et al. (2020) — Essential for Switchback-CUPED hybridisation (see Section 4.1).
+
+**Core Idea:** Provides theoretical framework for optimal covariate selection and multiple covariate extension. Moving beyond simple regression, the "New Look" at CUPED views it as an **Efficiency Augmentation**. Given a raw treatment effect estimator $\hat{\Delta}$, we add a mean-zero term to reduce noise without introducing bias.
 
 $$\hat{\Delta}_{aug} = \hat{\Delta} - \theta \hat{\Delta}_{null}$$
 
@@ -1166,6 +1276,41 @@ If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be
 | **ML-Prediction (New)** | Machine Learning | Predicted Prob. of Success | Fold if $P(\text{Sig}) < \text{Threshold}$ | Not the primary focus | Uses historical meta-data and time-series trends to "guess" the final outcome. |
 | **Utility Optimisation (New)** | Economic / RL | Expected Utility (Gain - Cost) | Fold if $E[U] < 0$ | Stop if $E[U] > \text{Threshold}$ | Balances "Business Value" vs "Wait Time." Unique because it incorporates the *cost of time*. |
 
+---
+
+### 3.5 MDE Reduction with Multiple Metrics: The Look-Elsewhere Effect
+
+**The Problem:** MDE reduction techniques focus on single metrics, but real experiments test 10-50+ metrics simultaneously. The "look-elsewhere effect" means that MDE gains are often "undone" by multiple testing — the #1 reason "successful" tests fail to replicate post-launch.
+
+**Why This Matters for MDE:**
+- Testing 50 metrics at α=0.05 → expect ~2.5 false positives per experiment
+- Variance reduction makes *all* metrics more sensitive, including false positives
+- Sequential testing compounds the problem (more looks × more metrics)
+
+**Combining MDE Reduction with FDR Control:**
+
+| Approach | How It Works | MDE Impact | When to Use |
+|----------|--------------|------------|-------------|
+| **Bonferroni** | α_adj = α/m | Increases effective MDE by √m | Few metrics (<10), conservative |
+| **Holm-Bonferroni** | Step-down procedure | Less severe than Bonferroni | Moderate number of metrics |
+| **Benjamini-Hochberg (BH)** | Controls FDR at q | ~10-20% MDE increase | Many metrics, exploratory |
+| **Hierarchical testing** | Primary → secondary metrics | No MDE penalty for primary | Clear metric hierarchy |
+| **Pre-registration** | Commit to primary metric | No MDE penalty | Single decision metric |
+
+**Recommended Workflow:**
+1. **Pre-register** 1-3 primary metrics (no multiple testing penalty)
+2. **Apply CUPED/variance reduction** to primary metrics
+3. **Use BH-FDR** for secondary/exploratory metrics (accept higher MDE)
+4. **Report both** unadjusted and adjusted p-values
+
+**MDE with FDR Correction:**
+For BH-FDR at level q with m metrics, the effective MDE for the k-th ordered p-value is approximately:
+$MDE_{FDR,k} \approx MDE_{single} \cdot \sqrt{\frac{m}{k \cdot q / \alpha}}$
+
+**Practical Guidance:**
+- If you test 50 metrics, expect ~2x MDE for exploratory metrics after FDR correction
+- Variance reduction partially offsets this: 50% CUPED reduction + 2x FDR penalty ≈ same MDE as baseline
+- **Key insight:** Invest variance reduction budget in primary metrics; accept higher MDE for secondary metrics
 
 ---
 
@@ -2541,3 +2686,144 @@ With carryover effect $\gamma$ and autocorrelation $\rho$:
 $$Var(\hat{\tau}) \approx \frac{2\sigma^2}{T}\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 
 ---
+
+
+---
+
+## Appendix B: Method Assumptions Reference
+
+**Purpose:** This appendix consolidates the critical assumptions underlying each MDE reduction method. Violating these assumptions can lead to bias, invalid inference, or overstated variance reduction claims.
+
+### B.1 Covariate Adjustment Methods (CUPED, CUPAC, ML-based)
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Randomisation** | $X \perp W$ | Biased treatment effect | Check covariate balance |
+| **Pre-treatment measurement** | $X$ measured before assignment | Bias if $X$ affected by treatment | Verify data timestamps |
+| **Stable covariate-outcome relationship** | $Cov(Y,X)$ constant | Overstated variance reduction | Compare ρ across time periods |
+| **No covariate drift** | $P(X)$ stable over time | Reduced correlation | Monitor covariate distributions |
+| **Linearity (CUPED only)** | $E[Y|X]$ linear | Suboptimal (not biased) | Plot residuals vs. fitted |
+| **Model correctly specified (CUPAC)** | ML model captures true $E[Y|X]$ | Suboptimal variance reduction | Cross-validation R² |
+| **No target leakage (CUPAC)** | Features exclude post-treatment info | Severe bias | Audit feature pipeline |
+
+**Key insight:** CUPED/CUPAC are *unbiased* under randomisation regardless of model specification. Misspecification only affects *efficiency*, not validity.
+
+### B.2 Sequential Testing Methods (GST, mSPRT, Always Valid)
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Independent observations** | $Y_i \perp Y_j$ for $i \neq j$ | Invalid p-values, inflated Type I | Check for clustering |
+| **Stable variance** | $Var(Y)$ constant over time | Boundary miscalibration | Monitor variance over time |
+| **No data-dependent stopping** | Stopping rule pre-specified | Inflated Type I error | Document stopping rules |
+| **Correct variance estimate** | $\hat{\sigma}^2 \approx \sigma^2$ | Miscalibrated boundaries | Use robust variance estimators |
+
+**Key insight:** Sequential methods control Type I error *only* if stopping rules are followed exactly. Ad-hoc peeking invalidates guarantees.
+
+### B.3 Switchback Experiments
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **No carryover** | $Y_t(w) \perp W_{t-1}$ | Bias toward null | Vary period length, check sensitivity |
+| **Stationarity** | $\tau_t = \tau$ for all $t$ | Heterogeneous effects conflated | Test for time trends |
+| **No anticipation** | $Y_t(w) \perp W_{t+1}$ | Bias in pre-treatment periods | Check for pre-trends |
+| **Sufficient period length** | Period > carryover duration | Carryover contaminates control | Domain knowledge, pilot studies |
+
+**Key insight:** Carryover is the dominant concern. When in doubt, use longer periods and exclude "burn-in" observations.
+
+### B.4 Interleaving Methods
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **No position bias** | User preference independent of position | Biased preference estimates | Use debiased interleaving |
+| **Consistent user preferences** | Same user prefers same variant | Noisy estimates | Check within-user consistency |
+| **Applicable to ranking** | Both variants can be shown simultaneously | Method not applicable | Verify experiment type |
+| **No presentation effects** | Mixing doesn't change user behaviour | Confounded estimates | Compare to A/B on subset |
+
+**Key insight:** Interleaving is *only* valid for ranking/recommendation experiments. Do not apply to UI changes or non-ranking treatments.
+
+### B.5 Cluster/Marketplace Methods
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **No between-cluster interference** | $Y_i(w) \perp W_j$ for $i \in C_1, j \in C_2$ | Biased estimates | Geographic separation, budget isolation |
+| **Sufficient clusters** | $K \geq 20$ clusters | Underpowered, invalid inference | Power calculation |
+| **Cluster homogeneity** | Within-cluster variance < between-cluster | Inefficient design | Analyse variance components |
+| **Stable cluster composition** | Cluster membership fixed | Contamination | Monitor user migration |
+
+**Key insight:** Cluster randomisation trades variance for bias reduction. Expect 2-10x larger MDE than user-level randomisation.
+
+### B.6 Robust Estimation (Heavy Tails)
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Finite variance (standard methods)** | $E[Y^2] < \infty$ | Invalid CLT, unreliable CI | Hill estimator, kurtosis |
+| **Appropriate winsorisation threshold** | Threshold captures outliers, not signal | Bias if too aggressive | Sensitivity analysis |
+| **Tail behaviour stable** | Tail index constant over time | Inconsistent robust estimates | Monitor tail diagnostics |
+
+**Key insight:** For revenue metrics, *always* check for heavy tails before applying standard methods. Winsorisation + CUPED is the recommended default.
+
+---
+
+## Appendix C: What Each Method Guarantees
+
+**Purpose:** Clarify exactly what statistical properties each method provides.
+
+| Method | Unbiased? | Variance Reduction? | Valid Inference? | Early Stopping? |
+|--------|-----------|--------------------|--------------------|-----------------|
+| **CUPED** | ✓ (under randomisation) | ✓ (proportional to ρ²) | ✓ | ✗ |
+| **CUPAC** | ✓ (under randomisation) | ✓ (proportional to R²) | ✓ | ✗ |
+| **Stratification** | ✓ | ✓ (removes between-strata variance) | ✓ | ✗ |
+| **GST** | ✓ | ✗ | ✓ (at pre-specified looks) | ✓ |
+| **mSPRT** | ✓ | ✗ | ✓ (anytime) | ✓ |
+| **Always Valid** | ✓ | ✗ | ✓ (anytime) | ✓ |
+| **Switchback** | ⚠️ (if no carryover) | ✓ (within-unit comparison) | ⚠️ (depends on assumptions) | ✗ |
+| **Interleaving** | ⚠️ (if no position bias) | ✓ (within-user comparison) | ⚠️ (depends on assumptions) | ✗ |
+| **Cluster** | ✓ (if no between-cluster interference) | ✗ (increases variance) | ✓ | ✗ |
+| **Winsorisation** | ⚠️ (small bias) | ✓ (stabilises variance) | ✓ (if bias acceptable) | ✗ |
+
+**Legend:**
+- ✓ = Guaranteed under standard conditions
+- ⚠️ = Conditional on specific assumptions
+- ✗ = Not provided by this method
+
+---
+
+## Appendix D: When Linear CUPED Suffices vs. When ML Helps
+
+**Source:** Based on NeurIPS 2021 ML-for-variance-reduction work (Guo et al.) and industry meta-analyses.
+
+### D.1 When Linear CUPED Is Sufficient
+
+Linear CUPED achieves near-optimal variance reduction when:
+1. **Single dominant covariate:** Pre-experiment metric is highly predictive (ρ > 0.6)
+2. **Linear relationship:** $E[Y|X]$ is approximately linear
+3. **Homogeneous population:** Same covariate-outcome relationship across segments
+4. **Stable metrics:** DAU, session count, page views
+
+**Empirical finding:** For ~80% of standard metrics at major tech companies, linear CUPED captures >90% of achievable variance reduction.
+
+### D.2 When ML Systematically Outperforms Linear
+
+ML-based methods (CUPAC, neural adjustment) provide meaningful gains when:
+1. **Non-linear relationships:** $E[Y|X]$ has curvature (e.g., diminishing returns)
+2. **Feature interactions:** Effect of $X_1$ depends on $X_2$
+3. **High-dimensional covariates:** Many weak predictors that combine non-linearly
+4. **Heterogeneous populations:** Different user segments have different relationships
+5. **Complex metrics:** Revenue, LTV, engagement scores with multiple components
+
+**Empirical finding:** When linear CUPED R² < 0.5 and rich features are available, ML can provide 10-30% additional variance reduction.
+
+### D.3 Decision Rule
+
+```
+IF linear_cuped_r2 > 0.6:
+    RETURN "Stick with linear CUPED"
+ELIF linear_cuped_r2 > 0.4 AND ml_infrastructure_exists:
+    RETURN "Try CUPAC, expect 5-15% marginal gain"
+ELIF linear_cuped_r2 < 0.4 AND rich_features_available:
+    RETURN "ML likely worthwhile, expect 15-30% marginal gain"
+ELSE:
+    RETURN "Consider stratification or surrogate metrics instead"
+```
+
+**Key insight:** The decision to use ML should be based on *unexplained variance*, not absolute variance. If linear CUPED already explains most variance, ML adds complexity without proportional benefit.
