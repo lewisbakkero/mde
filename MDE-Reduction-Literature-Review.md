@@ -370,7 +370,7 @@ $$\hat{Y}_{combined} = Y - \theta_1(X_{pre} - \bar{X}_{pre}) - \theta_2(X_{in} -
 
 ### 2.8 Variance Reduction for Sparse and Delayed Outcomes
 
-**Source:** [Variance Reduction Using In-Experiment Data: Efficient and Targeted Online Measurement for Sparse and Delayed Outcomes](https://dl.acm.org/doi/10.1145/3580305.3599928) (KDD 2023)
+**Source:** [Variance Reduction Using In-Experiment Data: Efficient and Targeted Online Measurement for Sparse and Delayed Outcomes](https://dl.acm.org/doi/10.1145/3580305.3599928) 
 
 **Core Idea:** Standard variance reduction methods (CUPED, CUPAC) struggle with **sparse outcomes** (where most users have zero values, e.g., purchases, conversions) and **delayed outcomes** (metrics that take time to materialise, e.g., subscription renewals, long-term retention). This paper introduces targeted variance reduction using in-experiment surrogate metrics that are correlated with the sparse/delayed primary outcome.
 
@@ -1149,6 +1149,66 @@ Many platforms combine methods:
 - May need domain expertise to define appropriate clusters
 - Trade-off: bias reduction vs. variance inflation
 
+#### Experimenting in Equilibrium
+
+**Source:** [Experimenting in Equilibrium](https://arxiv.org/abs/1903.02124) by Wager & Xu (2021)
+
+**Core Idea:** Standard A/B tests assume that treating some users doesn't affect the outcomes of control users (SUTVA). In marketplaces, this assumption fails because the experiment itself shifts market equilibrium—prices, supply, and demand adjust in response to the treatment. This paper provides a framework for estimating treatment effects when the experiment perturbs market equilibrium.
+
+**The Equilibrium Problem:**
+Consider a ride-sharing experiment testing a new pricing algorithm:
+- **Partial equilibrium view:** Treatment users see different prices → different behaviour
+- **General equilibrium reality:** Changed demand from treatment users → drivers reallocate → wait times change for *everyone* (including control)
+
+The naive A/B test estimate captures only the partial equilibrium effect, but the full rollout would produce a different (general equilibrium) effect.
+
+**MDE Equation Modification:**
+The paper shows that equilibrium effects introduce bias rather than variance:
+$\hat{\tau}_{naive} = \tau_{partial} + \underbrace{\tau_{equilibrium}}_{\text{bias from equilibrium shift}}$
+
+To estimate the true full-rollout effect $\tau_{GE}$:
+$MDE_{equilibrium} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2}{n}} + \text{equilibrium correction}$
+
+**Method:**
+1. **Model the market:** Specify supply/demand curves and equilibrium conditions
+2. **Estimate structural parameters:** Use experimental variation to identify demand/supply elasticities
+3. **Simulate counterfactual equilibrium:** Compute what would happen under full rollout
+4. **Correct the treatment effect:** Adjust naive estimate for equilibrium shift
+
+**Key Insight - When Equilibrium Effects Matter:**
+
+| Market Characteristic | Equilibrium Effect | Example |
+|----------------------|-------------------|---------|
+| **Inelastic supply** | Large | Ride-sharing (fixed drivers) |
+| **Elastic supply** | Small | E-commerce (infinite inventory) |
+| **Thick market** | Small | Large ad marketplace |
+| **Thin market** | Large | Local services marketplace |
+| **Price-setting treatment** | Large | Dynamic pricing experiments |
+| **Non-price treatment** | Usually small | UI changes |
+
+**Practical Guidance:**
+- **Small treatment fraction:** Equilibrium effects scale with treatment fraction; smaller experiments have smaller bias
+- **Short duration:** Less time for market to re-equilibrate
+- **Structural estimation:** When equilibrium effects are large, use structural models to extrapolate
+
+**Key Findings:**
+- Naive A/B tests can be severely biased in marketplace settings
+- Bias direction depends on market structure (can over- or under-estimate)
+- Structural modelling enables extrapolation from partial to general equilibrium
+- Particularly relevant for pricing, matching, and allocation experiments
+
+**Limitations:**
+- Requires economic modelling expertise
+- Structural assumptions may be wrong
+- Computationally intensive for complex markets
+- May not be necessary for non-price treatments or thick markets
+
+**When to Use Equilibrium Correction:**
+- Treatment affects prices or allocation mechanisms
+- Market has constrained supply (drivers, inventory, ad slots)
+- Treatment fraction is large (>10%)
+- Full rollout decision is high-stakes
+
 ### 5.2 Decomposing Interference: Multiple Randomisation Designs
 
 **Source:** 
@@ -1308,6 +1368,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | **Cluster Randomisation** | 5.1 | Reduce within-cluster interference | Good | Medium | Geographic markets |
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
+| **Equilibrium Correction** | 5.1 | Structural modelling | Excellent | Very High | Pricing/allocation experiments |
 | **Multiple Randomisation** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
 | **Network-Aware Bandits** | 5.3 | Model spillovers (known structure) | Good | High | Social networks |
 | **Adversarial Bandits** | 5.3 | Worst-case interference | Good | High | Unknown interference |
@@ -1319,6 +1380,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | Ad marketplace with budget competition | Budget-Split | Eliminates cannibalisation |
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
 | Many small markets | Cluster Randomisation | Standard approach, sufficient power |
+| Pricing/allocation experiments | Equilibrium Correction | Accounts for market re-equilibration |
 | Need to understand spillovers | Multiple Randomisation | Decomposes direct/indirect effects |
 | Social network effects (known graph) | Network-Aware Bandits | Models interference structure |
 | Unknown/adversarial interference | Adversarial Bandits | Robust worst-case guarantees |
@@ -1409,6 +1471,7 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 | **Cluster Randomisation** | 5.1 | Marketplace | Reduce interference | Varies | Medium | Geographic markets |
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
+| **Equilibrium Correction** | 5.1 | Marketplace | Structural modelling | Bias correction | Very High | Pricing experiments |
 | **Multiple Randomisation** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
 | **Network-Aware Bandits** | 5.3 | Marketplace | Model spillovers (known) | Varies | High | Social networks |
 | **Adversarial Bandits** | 5.3 | Marketplace | Worst-case interference | Varies | High | Unknown interference |
