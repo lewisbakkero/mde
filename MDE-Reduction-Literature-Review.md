@@ -561,13 +561,84 @@ Stop when $\Lambda_n > 1/\alpha$ or $\Lambda_n < \alpha$.
 
 ---
 
-### 3.4 Sequential Testing Methods: Comparison Table
+### 3.4 Futility-Aware Early Termination
+
+**Source:** [Know When to Fold: Futility-Aware Early Termination in Online Experiments](https://www.amazon.science/publications/know-when-to-fold-futility-aware-early-termination-in-online-experiments)
+
+**Core Idea:** Stop experiments early when the treatment is unlikely to ever achieve statistical significance, saving resources for more promising experiments. While efficacy stopping (3.1-3.3) asks "Is the effect proven?", futility stopping asks "Is proving an effect still possible?"
+
+**MDE Equation Modification:**
+Futility analysis doesn't directly reduce MDE but reduces *wasted* sample size on experiments that won't succeed:
+$$E[n_{futility}] = n_{max} \cdot P(\text{reach } n_{max}) + \sum_{k} n_k \cdot P(\text{stop at } k | \text{futile})$$
+
+The expected sample size is reduced when futile experiments are terminated early, freeing resources for other experiments.
+
+**Method:**
+1. At each interim analysis, compute the **conditional power**—the probability of achieving significance given current data
+2. If conditional power falls below a threshold (e.g., <10-20%), declare futility and stop
+3. Alternatively, use **predictive probability**—the Bayesian probability that the final result will be significant
+
+The paper moves beyond simple P-values and introduces more sophisticated ways to "fold" an experiment:
+
+- Sequential Bayes Factors (SBF): Instead of a fixed-horizon P-value, they use a Bayesian approach that updates as data comes in. If the "evidence" for the null hypothesis (that there is no effect) becomes overwhelming, the experiment is flagged.
+
+- Machine Learning Prediction: They developed a data-driven model that looks at the "trajectory" of an experiment. By comparing the first few days of a current test to thousands of historical experiments, the model can predict the probability that the test will eventually "turn green."
+
+- Optimization-Based Method: A framework that balances the risk of a "Type II error" (stopping an experiment that might have eventually won) against the "Utility" (the time and traffic saved by stopping it).
+
+Traditional methods like Conditional Power and SBF are statistically sound, they can be overly conservative or sensitive to noise in short-duration experiments. The ML-based approach outperformed traditional methods in Amazon's environment because it could recognize patterns (like "Monday-effects" or high-variance metrics) that simple statistical formulas ignore. The Optimization approach was the most effective for business leaders because it translated "statistical power" into "business dollars saved."
+
+**Conditional Power Calculation:**
+$$CP = P\left(Z_{final} > z_{\alpha/2} \mid Z_{current}, \theta = \hat{\theta}_{current}\right)$$
+
+If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be low, triggering futility stopping.
+
+**Futility Boundaries:**
+- **Binding:** Once crossed, experiment must stop (more aggressive resource savings)
+- **Non-binding:** Crossing is advisory; experiment can continue (preserves Type I error)
+
+**Key Findings:**
+- Can reduce average experiment duration by 20-40% for null/small effects
+- Frees experimentation capacity for more promising treatments
+- Particularly valuable when experimentation slots are limited
+- Complements efficacy stopping for a complete sequential framework
+
+**Limitations:**
+- Risk of stopping experiments that would have eventually succeeded (Type II error increase)
+- Requires careful threshold calibration
+- Conditional power depends on assumed effect size under alternative
+- May not be appropriate for exploratory experiments where learning is valuable even without significance
+
+**When to Use Futility Stopping:**
+- High volume of experiments competing for traffic
+- Clear minimum effect size of practical interest
+- Opportunity cost of continuing is high
+- Confirmatory (not exploratory) experiments
+
+---
+
+### 3.5 Sequential Testing Methods: Comparison Table
 
 | Method | MDE Mechanism | Sample Size Reduction | Monitoring Flexibility | Planning Required | Best Use Case |
 |--------|---------------|----------------------|----------------------|-------------------|---------------|
 | **GST** | Early stopping at $K$ looks | 30-50% | Pre-specified times only | High | Fixed monitoring schedule |
 | **Always Valid** | Continuous stopping | 20-40% | Any time | Low | Automated decisions |
 | **mSPRT** | Mixture likelihood ratio | 20-40% | Any time | Medium | Continuous monitoring |
+| **Futility Stopping** | Stop when effect unlikely | 20-40% (for null effects) | At interim analyses | Medium | High experiment volume |
+
+### 3.6 Comparison of Early Stopping Methods
+
+| Method | Foundation | Decision Metric (Rule) | Futility Handling | Efficacy Handling | Low-Level Detail / Implementation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Fixed Horizon** | Frequentist | p-value at end date | None (Must finish) | None | Baseline; ignores all interim data. |
+| **Conditional Power (CP)** | Frequentist | Prob. of final significance | Fold if $CP < \text{Threshold}$ (e.g., 0.2) | Often used with $\alpha$-spending | Assumes future data follows current trend or the original "Minimum Detectable Effect." |
+| **Bayesian Predictive Power (BPP)** | Bayesian | Posterior Prob. of success | Fold if $BPP < \text{Threshold}$ | Stop if $BPP > \text{Threshold}$ | Integrates out the uncertainty of the effect size using a prior (usually informed by history). |
+| **Sequential Bayes Factor (SBF)** | Bayesian | Bayes Factor (BF) | Fold if $BF < 1/k$ | Stop if $BF > k$ | Robust to "peeking"; BF represents the likelihood of $H_1$ vs $H_0$. |
+| **mSPRT** | Frequentist | Likelihood Ratio | Fold if $LR < \text{Lower Boundary}$ | Stop if $LR > \text{Upper Boundary}$ | Controls Type I error for continuous monitoring; used by Optimizely/Netflix. |
+| **Alpha-Spending (O'Brien-Fleming)** | Frequentist | p-value (Adjusted) | Binding/Non-binding boundaries | Stop if $p < \alpha(t)$ | More conservative early on to avoid "false wins"; requires pre-planned interim looks. |
+| **ML-Prediction (New)** | Machine Learning | Predicted Prob. of Success | Fold if $P(\text{Sig}) < \text{Threshold}$ | Not the primary focus | Uses historical meta-data and time-series trends to "guess" the final outcome. |
+| **Utility Optimization (New)** | Economic / RL | Expected Utility (Gain - Cost) | Fold if $E[U] < 0$ | Stop if $E[U] > \text{Threshold}$ | Balances "Business Value" vs "Wait Time." Unique because it incorporates the *cost of time*. |
+
 
 ---
 
@@ -1141,34 +1212,62 @@ Under the **Network Interference** assumption, the complexity collapses:
 
 ---
 
-## 6. Adaptive and Learning Methods
 
-**Core Idea:** Use information from past experiments to improve current ones.
+## 6. Cross-Experiment Learning
+
+### 6.1 Learning Across Experiments and Time
+
+**Source:** [Learning Across Experiments and Time: Tackling Heterogeneity in A/B Testing](https://www.amazon.science/publications/learning-across-experiments-and-time-tackling-heterogeneity-in-a-b-testing)
+
+**Core Idea:** Use information from past experiments to improve current ones. While CUPED uses pre-experiment *user data*, this approach uses pre-experiment *experiment results*—leveraging the historical database of A/B tests to reduce variance and improve power.
 
 **MDE Equation Modification:**
 With informative prior from historical experiments:
 $$MDE_{meta} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2}{n + n_{prior}}}$$
 
-Where $n_{prior}$ is the effective sample size from historical data.
+Where $n_{prior}$ is the effective sample size contributed by historical data. This can yield 20-40% MDE reduction.
+
+**The Heterogeneity Challenge:**
+Treatment effects vary across:
+- **Time:** Seasonality, trends, novelty effects
+- **Segments:** User types, geographies, platforms
+- **Experiments:** Different features, contexts
+
+Naive pooling ignores this heterogeneity; the paper addresses how to learn *despite* it.
 
 **Method:**
-1. Meta-analysis: Pool estimates across experiments
-2. Hierarchical models: Share information through priors
-3. Transfer learning: Use past data to reduce variance
+1. **Meta-analysis:** Pool estimates across similar past experiments
+2. **Hierarchical models:** Share information through partial pooling
+   $$\theta_i \sim N(\mu, \tau^2)$$ where $\mu$ is the population mean effect and $\tau^2$ captures between-experiment variance
+3. **Bayesian updating:** Use posterior from past experiments as prior for current
+4. **Time-series modeling:** Account for temporal dynamics in effect sizes
+
+**Effective Prior Sample Size:**
+The information from $K$ historical experiments with average sample size $\bar{n}$ contributes:
+$$n_{prior} \approx \frac{K \cdot \bar{n}}{1 + \frac{\sigma^2}{\tau^2}}$$
+
+When between-experiment heterogeneity ($\tau^2$) is low relative to within-experiment variance ($\sigma^2$), historical data is highly informative.
 
 **Key Findings:**
-- Historical data can significantly reduce MDE (20-40%)
-- Heterogeneity across experiments must be modeled
+- Historical data can reduce MDE by 20-40%
+- Heterogeneity must be explicitly modeled (not ignored)
+- Works best for mature platforms with many similar experiments
 - Requires experiment database infrastructure
 
 **Limitations:**
-- Must handle concept drift
-- Privacy considerations for data sharing
-- Requires substantial historical data
+- Must handle concept drift (effects change over time)
+- Privacy considerations for data sharing across teams
+- Requires substantial historical data (dozens of similar experiments)
+- Risk of bias if historical experiments are systematically different
+- Computational complexity for hierarchical models
 
+**When to Use:**
+- Mature experimentation platform with rich history
+- Running similar experiments repeatedly (e.g., UI tweaks, pricing tests)
+- Effect sizes are relatively stable across time/segments
+- Experimentation velocity is high (many experiments per quarter)
 
 ---
-
 
 ## 7. Master Comparison of All Methods
 
@@ -1248,7 +1347,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
 
 ## 8. Practical Recommendations for Ads A/B Testing
 
-### 8.1 Quick Wins (Low Effort, High Impact)
+### 7.1 Quick Wins (Low Effort, High Impact)
 
 1. **Implement CUPED with pre-experiment ad engagement**
    - Use 7-14 day pre-period
@@ -1262,7 +1361,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
    - Reduces between-group variance
    - Expected: 10-20% additional reduction
 
-### 8.2 Medium-Term Investments
+### 7.2 Medium-Term Investments
 
 1. **Build CUPAC infrastructure**
    - ML models for outcome prediction
@@ -1276,7 +1375,7 @@ Where $n_{prior}$ is the effective sample size from historical data.
    - For marketplace-level experiments
    - Use data-driven design optimization
 
-### 8.3 Long-Term Platform Capabilities
+### 7.3 Long-Term Platform Capabilities
 
 1. **Budget-split design for ad experiments**
    - Eliminates marketplace interference
