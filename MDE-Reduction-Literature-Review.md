@@ -1120,6 +1120,75 @@ Where:
 - Fewer clusters with more units → higher variance but simpler implementation
 - Rule of thumb: Aim for $\geq 20$ clusters per arm for reliable inference
 
+#### Causal Clustering for Network Interference
+
+**Source:** [Causal clustering: design of cluster experiments under network interference](https://arxiv.org/abs/2310.14983) by Viviano (2023)
+
+**Core Idea:** Standard cluster randomisation assumes clusters are pre-defined (e.g., geographic regions). But when you have network data showing how units are connected, you can *optimally construct* clusters to minimise cross-cluster interference. This paper provides algorithms for "causal clustering"—forming clusters that maximise within-cluster connections and minimise between-cluster connections.
+
+**The Cluster Design Problem:**
+Traditional approach: Use existing boundaries (cities, regions, stores)
+- Problem: These boundaries may not align with actual interference patterns
+- Example: Users in adjacent postcodes may interact heavily; users in same city may not
+
+Causal clustering approach: Use network data to form optimal clusters
+- Advantage: Clusters are designed to contain interference
+- Example: Cluster users who frequently interact (friends, co-workers, neighbours)
+
+**MDE Equation Modification:**
+With optimally designed clusters, the design effect is reduced:
+$MDE_{causal-cluster} = (z_{1-\alpha/2} + z_{1-\beta}) \cdot \sqrt{\frac{2\sigma^2(1 + (m-1)\rho_{ICC}^{opt})}{n}}$
+
+Where $\rho_{ICC}^{opt} < \rho_{ICC}^{arbitrary}$ because optimal clustering groups similar/connected units together, reducing within-cluster variance relative to between-cluster variance.
+
+**Method:**
+1. **Construct network:** Build graph of unit connections (social ties, transactions, geographic proximity)
+2. **Define interference model:** Specify how treatment spills over through network edges
+3. **Optimise clustering:** Use graph partitioning algorithms to minimise cross-cluster edges
+4. **Randomise at cluster level:** Assign entire clusters to treatment/control
+5. **Estimate with interference-robust methods:** Account for residual cross-cluster spillovers
+
+**Clustering Algorithms:**
+
+| Algorithm | Approach | Best For |
+|-----------|----------|----------|
+| **Spectral clustering** | Eigenvectors of graph Laplacian | Dense networks with community structure |
+| **Modularity optimisation** | Maximise within-cluster edges | Social networks |
+| **Geographic + network** | Combine spatial and network data | Location-based services |
+| **Balanced partitioning** | Equal-sized clusters | When cluster size matters for power |
+
+**Key Trade-offs:**
+
+| Design Choice | Fewer, Larger Clusters | More, Smaller Clusters |
+|---------------|----------------------|----------------------|
+| **Interference containment** | Better (more edges within) | Worse (more edges across) |
+| **Statistical power** | Lower (fewer clusters) | Higher (more clusters) |
+| **Logistics** | Simpler | More complex |
+| **Optimal for** | Strong network effects | Weak network effects |
+
+**Key Findings:**
+- Optimal clustering can reduce design effect by 30-50% vs arbitrary clustering
+- Particularly valuable when network structure is known but doesn't align with natural boundaries
+- Enables cluster experiments in settings where geographic clustering is inappropriate
+- Provides theoretical guarantees on bias-variance trade-off
+
+**Limitations:**
+- Requires network data (may not be available or complete)
+- Computational cost for large networks
+- Clusters may not be interpretable or actionable
+- Network structure may change over time
+
+**When to Use Causal Clustering:**
+- Network data is available (social graph, transaction network, communication patterns)
+- Natural boundaries don't align with interference patterns
+- Strong network effects are expected
+- Sufficient computational resources for optimisation
+
+**Connection to Other Methods:**
+- **Standard Cluster Randomisation:** Causal clustering optimises the cluster formation step
+- **Network-Aware Bandits (5.3):** Both use network structure; this for design, bandits for allocation
+- **Two-Sided Platforms:** Can combine with demand/supply-side randomisation
+
 #### Synthetic Control Methods
 
 **Core Idea:** When you can only treat a few large units (e.g., entire markets), construct a "synthetic" control by weighting untreated units to match the treated unit's pre-treatment trajectory.
@@ -1510,6 +1579,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | Method | Section | MDE Mechanism | Interference Handling | Complexity | Best Use Case |
 |--------|---------|---------------|----------------------|------------|---------------|
 | **Cluster Randomisation** | 5.1 | Reduce within-cluster interference | Good | Medium | Geographic markets |
+| **Causal Clustering** | 5.1 | Optimal cluster formation | Very Good | High | Network-based interference |
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
 | **Equilibrium Correction** | 5.1 | Structural modelling | Excellent | Very High | Pricing/allocation experiments |
@@ -1525,6 +1595,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | Ad marketplace with budget competition | Budget-Split | Eliminates cannibalisation |
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
 | Many small markets | Cluster Randomisation | Standard approach, sufficient power |
+| Network data available, strong spillovers | Causal Clustering | Optimises cluster boundaries for interference |
 | Pricing/allocation experiments | Equilibrium Correction | Accounts for market re-equilibration |
 | Two-sided platform (ride-sharing, e-commerce) | Two-Sided Randomisation | Reduces interference bias |
 | Need to understand spillovers | Multiple Randomisation | Decomposes direct/indirect effects |
