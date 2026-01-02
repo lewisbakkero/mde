@@ -723,7 +723,7 @@ The efficient variance $\sigma^2_{eff}$ is derived from the **efficient influenc
 
 ---
 
-### 2.7 Advanced CUPED Extensions (Consolidated)
+### 2.7 Advanced CUPED Extensions 
 
 **Note:** Sections 2.7.1-2.7.3 consolidate three related advanced extensions to CUPED. Each addresses a specific challenge; choose based on your situation rather than applying all.
 
