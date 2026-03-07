@@ -218,6 +218,8 @@ Understanding *why* a method reduces MDE helps you judge when it will (and won't
 
 5. **CUPAC model staleness:** ML models trained on old data may not predict current behaviour well. *Mitigation:* Retrain regularly, monitor prediction quality.
 
+6. **Undetected variance misestimation:** Variance estimates can be silently wrong due to data pipeline issues, metric definition changes, or heavy tails, invalidating all confidence intervals. *Mitigation:* Monitor average t² from A/A tests (see Section 2.9); it detects miscalibration 1.5–2× faster than traditional FPR monitoring.
+
 ### Ratio Metrics: Special Considerations
 
 **Source:** [Variance Reduction for Ratio Metrics](https://medium.com/airbnb-engineering/variance-reduction-for-ratio-metrics-20c2d385f95f) by Chen, Liu, and Xu (Airbnb, 2021)
@@ -980,11 +982,98 @@ Typical combined reduction: 50-80% for revenue metrics.
 - Sample variance doesn't stabilise with increasing n
 - Standard CUPED shows unstable variance reduction across experiments
 
-**Connection to Practitioner's Guide:** This section provides the theoretical foundation for the "Heavy tails" row in the Ratio Metrics table, explaining *why* winsorisation is recommended for revenue metrics.
+**Connection to Practitioner's Guide:** This section provides the theoretical foundation for the "Heavy tails" row in the Ratio Metrics table, explaining *why* winsorisation is recommended for revenue metrics. For methods to efficiently *validate* that your variance estimates are correct (a prerequisite for trusting any variance reduction), see Section 2.9.
 
 ---
 
-### 2.9 Variance Reduction Methods: Comparison Table
+### 2.9 Platform-Level Variance Diagnostics: Evaluating Variance Estimate Quality
+
+**Source:** [Evaluating Variance Estimates with Relative Efficiency](https://arxiv.org/abs/2511.15961) by Klys, Ting, Vorozhtsov, and Nassif (Meta, 2025)
+
+**Core Idea:** Before trusting any variance reduction method (Sections 2.1–2.8), you need to verify that your platform's variance estimates are correct. This paper proposes more sample-efficient diagnostics for detecting miscalibrated variance estimates via A/A testing, replacing the standard false positive rate (FPR) check with metrics that extract more information from the same data.
+
+**The Variance Validation Problem:**
+- Experimentation platforms rely on variance estimates $\hat{\sigma}^2$ to construct confidence intervals and compute MDE
+- If $\hat{\sigma}^2$ is biased or noisy, confidence intervals are invalid — regardless of which variance reduction method is applied
+- The standard diagnostic is A/A testing: run experiments where both arms receive the same treatment, then check if the false positive rate matches the nominal level (e.g., 0.1 for 90% CIs)
+- **Problem with FPR:** Each A/A test is reduced to a binary outcome (significant or not), discarding the magnitude of the t-statistic. This makes FPR a statistically inefficient diagnostic
+
+**Why FPR Is Inefficient:**
+In each A/A test, the t-statistic $t_j = \mu_j / (\sigma_j / \sqrt{S})$ is a continuous value carrying information about how far the result is from zero. FPR collapses this to a single bit:
+
+$Z_j = \mathbb{1}(|t_j| \geq \Phi^{-1}(0.95))$
+
+The standard error of the FPR estimate is $\sqrt{FPR \cdot (1-FPR)/n}$, requiring ~2500 A/A tests to estimate FPR to within 1% at 90% confidence.
+
+**Proposed Alternative Metrics:**
+
+| Metric | Definition | Null Expectation | What It Detects | Sample Efficiency vs FPR |
+|--------|-----------|-----------------|-----------------|-------------------------|
+| **FPR** | Fraction of t-stats exceeding threshold | 0.1 (for 90% CI) | Miscalibrated CIs | Baseline |
+| **Average t²** | $\frac{1}{n}\sum t_j^2$ | 1.0 (since $t \sim N(0,1)$ under null) | Variance over/under-estimation | 1.5–2× more efficient |
+| **Kurtosis** | Fourth standardised moment of t-stats | 0 (excess kurtosis of $N(0,1)$) | Distributional miscalibration | 1.5–2× more efficient |
+
+**Why Average t² Works:**
+Under correct variance estimation and the null hypothesis, t-statistics are approximately standard normal by the CLT. If $Z \sim N(0,1)$, then $Z^2 \sim \chi^2(1)$ with $E[Z^2] = 1$. Deviations from 1 directly indicate variance estimation problems:
+- Average t² > 1 → variance is underestimated (CIs too narrow, inflated false positives)
+- Average t² < 1 → variance is overestimated (CIs too wide, reduced power)
+- Average t² ≈ 1 → variance estimates are well-calibrated
+
+Unlike FPR, average t² retains the magnitude of each t-statistic, making it a more informative summary.
+
+**Relative Efficiency Framework:**
+The paper formalises comparison using a finite-sample analog of Pitman efficiency. For a given significance level $\alpha$ and target power $1-\beta$, the relative efficiency of metric 1 vs metric 2 is:
+
+$e_{12} = \frac{N_2(\alpha, \beta)}{N_1(\alpha, \beta)}$
+
+Where $N(\alpha, \beta)$ is the number of A/A tests required to detect variance miscalibration at the given power and significance level.
+
+**Experimental Setup:**
+- $S = 1000$ samples per group, drawn from Uniform[5,6]
+- Variance noise: lognormal multiplicative noise $\hat{\sigma}^2_j = \sigma^2_j \cdot \xi_j$ with $E[\xi_j] = 1$ (unbiased noise)
+- Noise parameterised by $\theta \in \{0.1, 0.2, 0.3, 0.4\}$
+- 500 Monte Carlo trials per configuration
+
+**Key Findings:**
+- Average t² achieves 1.5–2× relative efficiency over FPR consistently across noise levels
+- Kurtosis also outperforms FPR but less consistently
+- The efficiency gain is more pronounced at higher power levels
+- Both alternative metrics detect "unbiased" variance noise (noise that doesn't shift the mean but inflates variability)
+
+**Practical Impact for Experimentation Platforms:**
+
+| Benefit | Explanation |
+|---------|-------------|
+| **Halved A/A test requirements** | Detect variance issues with ~50% fewer A/A tests, freeing traffic for real experiments |
+| **Faster incident detection** | Catch miscalibrated variance estimators in days instead of weeks after code/pipeline changes |
+| **Subtler problem detection** | Detect smaller noise levels ($\theta = 0.2$) that FPR would miss at the same sample size |
+| **Better continuous monitoring** | Tighter error bars on diagnostic dashboards, fewer false alarms |
+
+**Implementation:**
+1. Continue running A/A tests as usual
+2. Compute t-statistics for each A/A test
+3. Track average t² (and optionally kurtosis) alongside FPR
+4. Alert when average t² deviates significantly from 1.0 using a standard z-test
+
+**Limitations:**
+- Assumes t-statistics are approximately normal (requires sufficient per-test sample size)
+- Detects that variance is wrong but doesn't diagnose *why* (need additional investigation)
+- Framework tested with unbiased multiplicative noise; behaviour under other noise models (e.g., systematic bias) not explored
+- Requires multiple A/A tests; not applicable to single-experiment validation
+
+**When to Use:**
+- Any platform running regular A/A tests for system validation
+- After deploying new variance reduction methods (CUPED, CUPAC, etc.) to verify they work correctly
+- After infrastructure changes that could affect variance estimation (new data pipelines, metric definitions)
+- As a continuous health check for experimentation platform reliability
+
+**Connection to Other Sections:**
+- **Section 2.8 (Heavy-Tailed Robust):** Heavy tails can cause variance misestimation; this section's diagnostics can detect that problem. The kurtosis metric here is related to the kurtosis diagnostic in Section 2.8's "Detecting Heavy Tails" table, but applied to t-statistics from A/A tests rather than raw metric values.
+- **Practitioner's Guide (Common Failure Modes):** Variance misestimation is a root cause of several failure modes; average t² provides an efficient early warning system.
+
+---
+
+### 2.10 Variance Reduction Methods: Comparison Table
 
 | Method | Section | MDE Modification | Typical Variance Reduction | Complexity | Data Requirements | Best Use Case |
 |--------|---------|------------------|---------------------------|------------|-------------------|---------------|
