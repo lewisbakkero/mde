@@ -2677,6 +2677,103 @@ Where $\phi$ and $\Phi$ are the standard normal PDF and CDF. The bias term incre
 
 **Key Insight:** Variance reduction methods like CUPED reduce winner's curse by shrinking the noise component. A 50% variance reduction doesn't just improve power — it also makes observed effects more accurate estimates of true effects.
 
+### 10.1 Bayesian Hybrid Shrinkage for Winner's Curse Correction
+
+**Source:** [Breaking the Winner's Curse with Bayesian Hybrid Shrinkage](https://arxiv.org/abs/2511.06318) by Klys, Ting, Vorozhtsov, and Nassif (Meta, 2025)
+
+**Core Idea:** Provide a scalable Bayesian correction for the Winner's Curse that is robust to prior misspecification and deployable at platform scale without numerical integration. The method uses experiment-specific "local shrinkage" factors to adaptively pull inflated effect size estimates back toward a population mean, with stronger correction for noisier experiments.
+
+**Why Existing Approaches Fall Short:**
+- **Face Value (classical):** The standard difference-in-means estimator is biased under selection — experiments that pass the significance threshold have systematically inflated estimates
+- **Frequentist corrections:** Require explicit modelling of the selection mechanism, which is complex and fragile
+- **Bayesian Global Shrinkage:** Applies uniform shrinkage across all experiments — works well when the prior is correctly specified, but degrades under misspecification (wrong prior mean, heavy-tailed effects, correlated selection)
+
+**Theoretical Foundation — Joint vs. Marginal Selection:**
+
+A key insight is that in the typical platform setting (many experiments, each testing a different feature), the Bayesian posterior does not require an explicit selection correction. This follows from the distinction between two selection paradigms:
+
+| Paradigm | Setup | Selection Correction Needed? | Typical Setting |
+|----------|-------|------------------------------|-----------------|
+| **Joint selection** | Each experiment has a different true effect θᵢ drawn from a population distribution; select winners based on observed θ̂ᵢ | No — the prior handles it | Standard experimentation platform |
+| **Marginal selection** | One fixed true effect θ tested in multiple experiments; select the significant ones | Yes — likelihood is truncated | Replication studies of a single treatment |
+
+Under joint selection, the selection indicator 1(θ̂ ∈ S) appears identically in both the numerator and denominator of Bayes' rule, so it cancels — the posterior under selection equals the unadjusted posterior. This means a well-calibrated prior is sufficient to correct the Winner's Curse without modelling the selection process.
+
+**The Bayesian Hybrid Shrinkage Model:**
+
+The method is formulated as a hierarchical post-hoc model applied to experiment results:
+
+$\hat{\theta}_i | \theta_i, \hat{\sigma}_i^2 \sim N(\theta_i, \hat{\sigma}_i^2)$ — observed estimate is noisy
+
+$\theta_i | m_0, \lambda_i, \tau \sim N(m_0, \lambda_i \cdot \tau)$ — true effect has a prior with local scale
+
+$\lambda_i | a, b \sim \text{InverseGamma}(a/2, b/2)$ — experiment-specific shrinkage factor
+
+The posterior for each experiment's true effect is:
+
+$\theta_i | \hat{\theta}_i, \lambda_i, \tau \sim N\left(\frac{\hat{\sigma}_i^2}{\hat{\sigma}_i^2 + \lambda_i \tau} m_0 + \frac{\lambda_i \tau}{\hat{\sigma}_i^2 + \lambda_i \tau} \hat{\theta}_i, \quad \left(\frac{1}{\hat{\sigma}_i^2} + \frac{1}{\lambda_i \tau}\right)^{-1}\right)$
+
+The posterior mean is a weighted average of the prior mean $m_0$ and the observed estimate $\hat{\theta}_i$, with weights determined by the ratio of sampling variance to prior variance. Experiments with large noise relative to their signal get pulled more toward the prior (more shrinkage); experiments with strong, clear signals barely get shrunk.
+
+**What Makes It "Hybrid":**
+
+| Component | Global Shrinkage (baseline) | Hybrid Shrinkage (proposed) |
+|-----------|---------------------------|----------------------------|
+| **Prior variance** | $\tau$ (same for all experiments) | $\lambda_i \cdot \tau$ (experiment-specific) |
+| **Shrinkage intensity** | Uniform across experiments | Adaptive per experiment |
+| **Prior misspecification** | Sensitive — degrades when prior is wrong | Robust — λᵢ absorbs misspecification |
+| **Computational cost** | Closed-form | Closed-form (λᵢ fixed at posterior mode) |
+
+The local shrinkage factor λᵢ allows experiments whose data strongly disagrees with the prior to receive less shrinkage, while noisy experiments with weak signals receive more. This is the key robustness mechanism.
+
+**Scalability:** The posterior is available in closed form (conjugate normal-inverse-gamma), so no MCMC or numerical integration is needed. This is critical for deployment — posterior estimates for thousands of experiments can be computed cheaply.
+
+**Validation:**
+
+The paper validates against three prior misspecification scenarios:
+
+| Scenario | What's Wrong | Global Shrinkage | Hybrid Shrinkage |
+|----------|-------------|-----------------|-----------------|
+| **Misspecified mean** | Prior mean $m_0 = 0$ but true effects are non-zero | Degrades as true mean increases | Robust — λᵢ compensates |
+| **Heavy-tailed effects** | True effects follow t-distribution, prior assumes normal | Over-shrinks tail experiments | Robust — λᵢ inflates for outliers |
+| **Hidden correlated selection** | Bivariate effects, select on both, analyse one | Moderate degradation | More robust across correlation levels |
+
+Empirical validation on 167 real experiments with paired replication studies shows Hybrid Shrinkage achieves the lowest mean absolute error (MAE) while maintaining strong coverage of 90% credible intervals.
+
+**Practical Impact:**
+
+| Benefit | Explanation |
+|---------|-------------|
+| **Accurate impact accounting** | Debiased effect sizes prevent overstating team/org impact when summing launched experiment effects |
+| **Better prioritisation** | True effect size ordering may differ from Face Value ordering — shrinkage recovers the correct ranking |
+| **Calibrated launch decisions** | Marginal experiments (near significance boundary) get the most correction, improving go/no-go quality |
+| **Downstream model quality** | Feeding debiased estimates into prediction models (e.g., for power analysis or experiment prioritisation) improves their calibration |
+| **Platform credibility** | Post-launch metric movements match pre-launch estimates, building trust in the experimentation system |
+
+**Implementation:**
+1. Collect Face Value estimates $\hat{\theta}_i$ and standard errors $\hat{\sigma}_i$ from launched experiments
+2. Estimate global hyperparameters ($m_0$, $\tau$, $a$, $b$) from the population of experiments (empirical Bayes)
+3. Compute posterior mode of λᵢ for each experiment
+4. Compute posterior mean and credible interval from the closed-form posterior
+5. Report shrunk estimates alongside (or instead of) Face Value estimates
+
+**Limitations:**
+- Requires a population of experiments to estimate the prior — not applicable to a single isolated experiment
+- Prior calibration matters: the joint selection result assumes the prior is a reasonable model of the true effect distribution
+- The paper focuses on ratio estimands (treatment/control ratio); extension to difference estimands is straightforward but not explicitly validated
+- Validation uses paired replication studies, which are expensive to obtain at scale
+
+**When to Use:**
+- Any platform that launches experiments based on significance thresholds and reports aggregate impact
+- When teams sum launched experiment effects for quarterly/annual impact reporting
+- When experiment results feed into downstream ML models or decision systems
+- When marginal experiments (near the significance boundary) are common — these have the most bias
+
+**Connection to Other Sections:**
+- **Section 2 (Variance Reduction):** Variance reduction methods like CUPED reduce the Winner's Curse indirectly by shrinking the noise component. Bayesian shrinkage addresses the residual bias that remains even after variance reduction.
+- **Section 2.9 (Variance Diagnostics):** From the same research team. Section 2.9 validates that variance estimates are correct; this section corrects the bias in effect size estimates conditional on selection. Both are platform-level statistical health measures.
+- **Mitigation Strategies table above:** This subsection expands on the "Shrinkage estimators" row with a concrete, scalable method.
+
 ---
 
 ## 11. Variance Reduction for Heterogeneous Treatment Effects (HTE)
