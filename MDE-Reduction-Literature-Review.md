@@ -1343,7 +1343,100 @@ If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be
 
 ---
 
-### 3.5 Sequential Testing Methods: Comparison Table
+### 3.5 Bayesian Predictive Probabilities for Interim Analysis
+
+**Source:** [Bayesian Predictive Probabilities for Online Experimentation](https://arxiv.org/abs/2511.06320) by Friedberg, Khan, Leow, Soneji, Nassif, and Mudd (Meta, 2025)
+
+**Core Idea:** Use the Predictive Probability of Success (PPoS) — the Bayesian probability that an experiment will achieve significance at its planned endpoint, given data observed so far — as a principled stopping rule for interim analysis. Unlike frequentist sequential methods (GST, mSPRT) that ask "is the evidence strong enough now?", PPoS asks "given what we've seen, will this experiment succeed if we let it run to completion?"
+
+**The Peeking Problem:**
+- Experimenters routinely peek at results before the planned endpoint to kill futile experiments or launch clear winners early
+- Without formal stopping rules, this inflates Type I error rates — the paper's practical heuristic baseline shows 50/78 (64%) of suggested launches would have been neutral at completion
+- Frequentist corrections (GST, mSPRT) address this but are either inflexible (GST) or sacrifice power for continuous validity (mSPRT)
+
+**Method — Predictive Probability of Success:**
+
+At interim point $T'$ (with planned endpoint $T$), PPoS is defined as:
+
+$PPoS = \int 1[P(\theta > 0 | \hat{\theta}_{t=T',\ldots,T}) > (1-\alpha)] \cdot \pi(\hat{\theta}_{t=T',\ldots,T} | \hat{\theta}_{t=1,\ldots,T'}) \, d\hat{\theta}_{t=T',\ldots,T}$
+
+In words: integrate over all possible future data trajectories (weighted by their predictive probability given current data), and count the fraction where the experiment would be declared significant at the endpoint.
+
+**Estimation via Monte Carlo Simulation:**
+1. Form the posterior $\pi(\theta | \hat{\theta}_{t=1,\ldots,T'})$ from data observed so far
+2. For $k = 1, \ldots, K$ simulations:
+   - Sample future data $\hat{\theta}^{(k)}_{t=T',\ldots,T}$ from the predictive distribution
+   - Check whether the experiment would be significant at the endpoint
+3. $\widehat{PPoS} = \frac{1}{K} \sum_{k=1}^{K} 1[P(\theta^{(k)} > 0 | \hat{\theta}_{t=1,\ldots,T'}) > (1-\alpha)]$
+
+**Decision Rule:**
+- PPoS > 0.9 → likely winner, stop early and launch
+- PPoS < 0.1 → likely futile, kill the experiment
+- Otherwise → continue to next interim analysis
+
+**Model Specification:**
+Uses a conjugate Gaussian model with Jeffreys (non-informative) prior ($\tau \to \infty$):
+
+$\theta | \hat{\theta}_{t=1,\ldots,T'} \sim N\left(\frac{\sum_{t=1}^{T'} \hat{\theta}_t}{T'}, \frac{\sigma^2}{T'}\right)$
+
+$\hat{\theta}_{t=T',\ldots,T} | \hat{\theta}_{t=1,\ldots,T'} \sim N\left(\frac{\sum_{t=1}^{T'} \hat{\theta}_t}{T'}, \frac{\sigma^2}{T} + \frac{\sigma^2}{T'}\right)$
+
+This keeps everything closed-form — no MCMC needed, making it scalable to thousands of experiments.
+
+**Why the Stopping Rule Is "Ignorable":**
+By the likelihood principle, the Bayesian posterior depends only on the observed data, not on the sampling plan (when or how often you looked). This means the decision to stop doesn't invalidate the inference — unlike frequentist methods where the stopping rule is part of the analysis. This is the same principle that eliminates the need for selection correction in the Winner's Curse setting (see Section 10.1).
+
+**Empirical Results (345 experiments, interim at day 7 of 14):**
+
+| Method | Experiments Curtailed | Suggested Launches | False Positives Among Launches | FP Rate |
+|--------|----------------------|-------------------|-------------------------------|---------|
+| **Practical Heuristic** | 170 | 78 | 50 | 64% |
+| **Always-Valid p-values** | 185 | 32 | 17 | 53% |
+| **PPoS** | 156 | 26 | 8 | 31% |
+
+PPoS trades slightly fewer early kills (156 vs. 185) for a substantially lower false positive rate among launches (31% vs. 53%). Notably, PPoS had zero negative findings among its suggested launches — every recommended launch was either truly positive or neutral.
+
+**Comparison with Other Sequential Methods:**
+
+| Dimension | GST (3.1) | Always-Valid / mSPRT (3.2-3.3) | PPoS (this section) |
+|-----------|-----------|-------------------------------|---------------------|
+| **Question asked** | "Is evidence strong enough now?" | "Is evidence strong enough now?" | "Will this experiment succeed at endpoint?" |
+| **Paradigm** | Frequentist | Frequentist | Bayesian |
+| **Error control** | Hard Type I guarantee | Hard Type I guarantee | Empirical — depends on prior and thresholds |
+| **Monitoring flexibility** | Pre-specified looks only | Anytime | Anytime |
+| **Futility handling** | Optional futility boundaries | Not natural | Built-in (PPoS < 0.1) |
+| **Output** | Binary (significant or not) | Binary (significant or not) | Continuous probability (0 to 1) |
+| **CI width penalty** | Moderate (~10-20%) | ~20-30% wider | None (uses planned-endpoint inference) |
+| **Computational cost** | Trivial | Trivial | Monte Carlo simulation (cheap with conjugate model) |
+| **Prior required** | No | No | Yes (Jeffreys or informative) |
+
+**Key Advantages:**
+- Unifies efficacy and futility stopping in a single metric
+- Continuous probability output is more informative than binary significance
+- No confidence interval width penalty (inference targets the planned endpoint)
+- Naturally integrates with informative priors from historical experiments (future work noted by authors)
+
+**Limitations:**
+- Error properties are empirical, not guaranteed — depend on prior choice and PPoS thresholds
+- Jeffreys prior provides no regularisation at very early interim points (day 3-5), where estimates are noisy
+- Validated only at the halfway point (day 7 of 14); performance at earlier interim points is unknown
+- Ground truth in the empirical evaluation is the day-14 outcome, which is itself a noisy estimate
+- Monte Carlo simulation adds computational overhead vs. closed-form frequentist methods
+
+**When to Use:**
+- Platforms with high experiment volume where early termination of futile experiments frees significant resources
+- When a continuous "probability of success" metric is more useful for decision-making than binary significance
+- When experimenters are already peeking informally and need a principled replacement
+- Confirmatory experiments with a clear planned endpoint
+
+**Connection to Other Sections:**
+- **Section 3.4 (Futility Stopping):** PPoS subsumes the "Bayesian Predictive Power (BPP)" row in Section 3.6's comparison table, providing the full methodological treatment
+- **Section 10.1 (Winner's Curse):** Same research group; both papers leverage the likelihood principle — PPoS for ignorable stopping, shrinkage for ignorable selection
+- **Section 2.9 (Variance Diagnostics):** Also from the same team; together these three papers form a coherent platform-level statistical toolkit (variance validation, effect size debiasing, principled early stopping)
+
+---
+
+### 3.6 Sequential Testing Methods: Comparison Table
 
 | Method | Section | MDE Mechanism | Sample Size Reduction | Monitoring Flexibility | Planning Required | Best Use Case |
 |--------|---------|---------------|----------------------|----------------------|-------------------|---------------|
@@ -1351,8 +1444,9 @@ If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be
 | **Always Valid** | 3.2 | Continuous stopping | 20-40% | Any time | Low | Automated decisions |
 | **mSPRT** | 3.3 | Mixture likelihood ratio | 20-40% | Any time | Medium | Continuous monitoring |
 | **Futility Stopping** | 3.4 | Stop when effect unlikely | 20-40% (for null effects) | At interim analyses | Medium | High experiment volume |
+| **PPoS (Bayesian Predictive)** | 3.5 | Predictive probability of endpoint success | 20-40% (futile + efficacy) | Any time | Low | Unified efficacy + futility |
 
-### 3.6 Comparison of Early Stopping Methods
+### 3.7 Comparison of Early Stopping Methods
 
 | Method | Foundation | Decision Metric (Rule) | Futility Handling | Efficacy Handling | Low-Level Detail / Implementation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -1363,11 +1457,12 @@ If the observed effect $\hat{\theta}_{current}$ is small or negative, CP will be
 | **mSPRT** | Frequentist | Likelihood Ratio | Fold if $LR < \text{Lower Boundary}$ | Stop if $LR > \text{Upper Boundary}$ | Controls Type I error for continuous monitoring; used by Optimizely/Netflix. |
 | **Alpha-Spending (O'Brien-Fleming)** | Frequentist | p-value (Adjusted) | Binding/Non-binding boundaries | Stop if $p < \alpha(t)$ | More conservative early on to avoid "false wins"; requires pre-planned interim looks. |
 | **ML-Prediction (New)** | Machine Learning | Predicted Prob. of Success | Fold if $P(\text{Sig}) < \text{Threshold}$ | Not the primary focus | Uses historical meta-data and time-series trends to "guess" the final outcome. |
+| **PPoS (Bayesian Predictive)** | Bayesian | Predictive Prob. of Success | Fold if $PPoS < 0.1$ | Stop if $PPoS > 0.9$ | Integrates over future data trajectories; ignorable stopping rule via likelihood principle. |
 | **Utility Optimisation (New)** | Economic / RL | Expected Utility (Gain - Cost) | Fold if $E[U] < 0$ | Stop if $E[U] > \text{Threshold}$ | Balances "Business Value" vs "Wait Time." Unique because it incorporates the *cost of time*. |
 
 ---
 
-### 3.5 MDE Reduction with Multiple Metrics: The Look-Elsewhere Effect
+### 3.8 MDE Reduction with Multiple Metrics: The Look-Elsewhere Effect
 
 **The Problem:** MDE reduction techniques focus on single metrics, but real experiments test 10-50+ metrics simultaneously. The "look-elsewhere effect" means that MDE gains are often "undone" by multiple testing — the #1 reason "successful" tests fail to replicate post-launch.
 
