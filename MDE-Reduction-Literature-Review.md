@@ -2520,6 +2520,77 @@ When between-experiment heterogeneity ($\tau^2$) is low relative to within-exper
 
 ---
 
+### 6.2 Estimating the True Effect Size Distribution with SIMEX
+
+**Source:** [Estimating the True Effect Size Distribution with SIMEX](https://pages.cs.wisc.edu/~hous21/presentations/CODE_24_SimEx_Paper.pdf) by Li, Ting, Gorbachev, Emamjomeh-Zadeh, and Nassif (Stanford/Meta, CODE 2024)
+
+**Core Idea:** Estimate the unobserved distribution of true treatment effects $F_0$ from the observed distribution of noisy effect size estimates, using a non-parametric method based on SIMulation-EXtrapolation (SIMEX). This is a deconvolution problem: the observed distribution is the true distribution convolved with measurement noise, and the goal is to recover the true distribution.
+
+**Why This Matters for Experimentation Platforms:**
+- **Overstated gains:** The observed distribution of effect sizes is wider than the true distribution because measurement noise inflates the spread. This leads to overstated gains that cannot be reproduced after launch, eroding trust in the experimentation system.
+- **Platform policy decisions:** Choosing optimal significance thresholds (e.g., α = 0.05 vs. α = 0.10) requires knowing the true effect distribution — how many experiments have real effects, and how large are they? Without $F_0$, this tradeoff is uninformed.
+- **Prior calibration:** Bayesian methods for correcting the Winner's Curse (Section 10.1) require a prior $\pi(\theta)$ that reflects the true distribution of effects, not the noise-inflated observed distribution.
+
+**The Deconvolution Problem:**
+For $n$ experiments, the unobserved true effect is $X_i$ and the observed estimate is $\hat{X}_i$:
+
+$X_i \sim F_0$
+
+$\hat{X}_i | X_i \sim N(X_i, \sigma_i^2)$
+
+The observed empirical distribution $F_\sigma$ is the convolution of $F_0$ with Gaussian noise. The goal is to estimate $F_0$.
+
+**Why Standard Deconvolution Methods Fail Here:**
+The A/B testing setting differs from typical deconvolution problems in two ways:
+- **Heteroskedastic errors:** Each experiment has its own variance $\sigma_i^2$
+- **Extremely low signal-to-noise ratio:** The noise distribution typically has greater spread than the true effect distribution, making kernel deconvolution methods inappropriate
+
+**The SIMEX Approach:**
+The key insight: you cannot remove noise from data, but you can add more noise and observe the trend.
+
+1. **Simulate:** Add progressively more noise to the observed data. Compute $\theta(c) = \phi(\hat{X} + c \cdot \epsilon')$ for noise multipliers $c \geq 1$, where $\phi$ is the statistic of interest
+2. **Fit:** Fit a smooth function to $\theta(c)$ for $c \geq 1$
+3. **Extrapolate:** Extrapolate back to $c = 0$, which corresponds to zero noise — the true distribution
+
+The authors choose quantiles as the statistic of interest $\phi_q$, estimating a grid of quantiles to obtain the inverse CDF $F^{-1}$ rather than the CDF directly.
+
+**Novel Contributions Over Standard SIMEX:**
+- **Quantile-based estimation with parametric basis:** Estimating quantiles (the inverse CDF) rather than the CDF directly allows construction of a basis that yields consistent estimates under parametric assumptions while remaining empirically good for non-parametric distributions. The paper does not provide full details of this basis construction (it is a workshop paper).
+- **Isotonic regression for monotonicity:** Independently estimating each quantile can produce a non-monotone inverse CDF (e.g., the 60th percentile estimate lower than the 50th). The authors extend isotonic regression to enforce monotonicity across all extrapolated quantile estimates simultaneously.
+- **Improved extrapolation:** The standard quadratic regression used in SIMEX was found to be poor at extrapolating from $c \geq 1$ back to $c = 0$. The parametric basis addresses this.
+
+**Experimental Validation:**
+The paper validates on a simulation where $F_0 = N(0,1)$ with measurement error also $N(0,1)$ (a 1:1 signal-to-noise ratio). The method recovers the known true distribution and performs nearly as well as Empirical Bayes Normal Means (EBNM), which is a parametric method — notable given that SIMEX makes no distributional assumptions about $F_0$.
+
+**Comparison with Alternative Approaches:**
+
+| Method | Parametric? | Handles Heteroskedasticity? | Low SNR? | Complexity |
+|--------|------------|---------------------------|----------|------------|
+| **Kernel deconvolution** | No | Limited | Poor — noise dominates | Medium |
+| **EBNM (Empirical Bayes)** | Yes (normal prior family) | Yes | Good | Medium |
+| **Normal mixture models** | Yes (mixture of normals) | Yes | Good | Medium |
+| **SIMEX (this paper)** | No | Yes | Good | Low-Medium |
+
+**Limitations and Open Questions:**
+- Validated only in simulation with known $F_0$ and known Gaussian noise — the gap to real platform data (unknown $F_0$, approximate $\sigma_i^2$) is unaddressed
+- The noise model $\hat{X}_i | X_i \sim N(X_i, \sigma_i^2)$ is an assumption; if actual noise is non-Gaussian or the $\sigma_i^2$ estimates are biased, the deconvolution is off
+- The additive noise assumption may not hold for ratio metrics or non-linear estimands
+- Robustness to noise model misspecification is claimed (quantiles are inherently robust to outliers) but not formally validated
+- Workshop paper (3 pages) — full details of the basis construction and broader empirical evaluation are not provided
+
+**When to Use:**
+- Platforms that need to estimate the population distribution of true effects for policy decisions (significance threshold selection, resource allocation)
+- As an upstream step for calibrating Bayesian shrinkage priors (Section 10.1)
+- When a non-parametric estimate of $F_0$ is preferred over parametric assumptions (e.g., normal mixture models)
+- Requires validated variance estimates $\sigma_i^2$ — use Section 2.9 diagnostics first
+
+**Connection to Other Sections:**
+- **Section 6.1 (Learning Across Experiments):** Both sections use the corpus of past experiments to inform platform decisions. Section 6.1 uses hierarchical models for partial pooling; this section estimates the population distribution non-parametrically.
+- **Section 10.1 (Winner's Curse — Bayesian Hybrid Shrinkage):** The shrinkage prior $\pi(\theta)$ should reflect $F_0$. This paper provides a method to estimate $F_0$ from observed data, which can then be used to calibrate the prior.
+- **Section 2.9 (Variance Diagnostics):** SIMEX requires accurate $\sigma_i^2$ values as input. The variance diagnostics in Section 2.9 validate that these estimates are correct — a prerequisite for reliable deconvolution.
+
+---
+
 ## 7. Master Comparison of All Methods
 
 ### 7.1 Summary Table: All Methods by MDE Reduction Mechanism
