@@ -114,6 +114,7 @@ Methods from different categories can be combined. Variance reduction lowers the
 | **Switchback** | 20-40% | High (months) | Medium | None | Time-series capability | Marketplace experiments |
 | **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Medium | None | Continuous data stream | Experiments needing early decisions |
 | **Budget-Split** | 30-50% vs cluster | High (months) | High | Low | Budget isolation infra | Ad marketplace experiments |
+| **ACURT** | 30-40% throughput | High (months) | **High** (clustering) | Low | Ad auction graph + ML infra | Ad marketplace throughput bottleneck |
 
 *CUPAC gain over CUPED: Meta-analyses from Booking.com/DoorDash show ~80% of metrics see <5% marginal gain from ML over linear CUPED. Only invest if linear R² < 0.5.
 
