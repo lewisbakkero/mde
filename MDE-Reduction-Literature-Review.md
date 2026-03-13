@@ -2129,6 +2129,92 @@ Where $N_{min}$ is minimum daily events (typically 50-100) for pacing convergenc
 
 **Switch to Switchback when:** Pacing shows >20% hourly variance, arms fail to spend allocation, or >30% of budget consumed in single auction.
 
+#### Ad Clustered User Randomized Trials (ACURT)
+
+**Source:** [Ad Clustered User Randomized Trials](https://pages.cs.wisc.edu/~hous21/presentations/CODE_24_Ad_Clustered_Paper.pdf) by Bakhitov, Zhang, Sherstobitov, Daley, Ting, Nassif, and Leonenkov (Meta, CODE 2024)
+
+**Core Idea:** Boost experimentation throughput (the ability to run more simultaneous A/B tests at the same MDE) by partitioning ads into clusters and independently randomizing users within each cluster. Unlike Budget-Split which partitions the demand side (advertiser budgets), ACURT partitions the supply side (ad inventory) and eliminates within-user cross-cluster covariance to reduce variance.
+
+**The Throughput Problem:**
+- Major platforms run thousands of A/B tests per year, and demand is growing
+- Standard user-randomized trials have hit a throughput bottleneck
+- Regression adjustment methods (CUPED, CUPAC) have saturated — their gains are already captured
+- A fundamentally different experiment design is needed to unlock additional capacity
+
+**Variance Reduction Mechanism:**
+In a standard user-randomized trial, user $i$'s outcome is $Y_i = Y_{i1} + Y_{i2}$ (contributions from ad cluster 1 and 2). The within-user variance is:
+
+$Var(Y_{i1}) + Var(Y_{i2}) + 2 \cdot Cov(Y_{i1}, Y_{i2})$
+
+The covariance term inflates variance. In ACURT, users are independently randomized within each cluster (user $i$ might be treatment in cluster 1 but control in cluster 2). This makes the cross-cluster assignments independent, eliminating the covariance term.
+
+**SUTVA Assumption:**
+The estimator is unbiased under a cluster-level SUTVA: $Y_{i1}(W_{i1}, W_{i2}) = Y_{i1}(W_{i1})$ — a user's outcome in cluster 1 depends only on their treatment assignment in cluster 1, not cluster 2. This requires:
+- Clusters isolate auctions (ads from different clusters don't compete in the same auction)
+- User conversion behavior in one cluster doesn't influence behavior in the other
+- No cross-cluster budget effects or throttling spillovers
+
+**⚠️ SUTVA Violation Risk — Throttled Campaigns:** For campaigns with binding budget constraints, the pacing system creates a direct link between clusters. Winning more auctions in cluster 1 causes harder throttling in cluster 2, violating SUTVA. ACURT is most reliable for experiments where affected campaigns are mostly unthrottled, or where the treatment makes marginal changes unlikely to shift auction win rates significantly (e.g., late-stage ranking model tests).
+
+**Clustering Algorithm — Heterogeneous Balanced Partitioning (HBP):**
+The clustering must balance two competing objectives:
+
+| Objective | Definition | Good For | Measured By |
+|-----------|-----------|----------|-------------|
+| **Auction purity** | All ads in an auction belong to the same cluster | Low bias (SUTVA holds) | Low fanout over auctions |
+| **Intra-user mixture** | Each user sees ads from both clusters | Low variance (covariance eliminated) | High fanout over users |
+
+The algorithm operates on a heterogeneous tripartite graph G = (A ∪ R ∪ U, E) connecting ad campaigns, auctions, and users. It partitions ad campaigns into 2 balanced buckets by minimizing a composite probabilistic fanout objective:
+
+$\min_{A_1, A_2} \left[ \frac{1}{|R|} \sum_{r \in R} \text{p-fanout}(P, r) - \beta \cdot \frac{1}{|U|} \sum_{u \in U} \text{p-fanout}(P, u) \right]$
+
+Where $\beta \geq 0$ controls the tradeoff: $\beta = 0$ gives standard Social Hash partitioning (pure auction isolation); $\beta > 0$ trades some auction purity for more user mixture. This extends Meta's existing Social Hash partitioning algorithm.
+
+**Real-Time Cluster Maintenance:**
+Ad campaigns churn constantly, so the graph-based algorithm can't run continuously. A small neural network is trained on (ad features → cluster assignment) pairs from the graph algorithm, serving cluster assignments for new ads in real-time with no latency while the graph algorithm runs periodically to refresh labels.
+
+**Empirical Results (A/A test at Meta):**
+- Clustering achieves 70% of auctions with ≥80% same-cluster candidates
+- >20% of users non-trivially exposed to both clusters
+- 30% throughput increase for 2-week experiments
+- 40% throughput increase for 3-week experiments
+- MDE held constant
+
+**ACURT vs. Budget-Split:**
+
+| Dimension | Budget-Split | ACURT |
+|-----------|-------------|-------|
+| **What's partitioned** | Advertiser budgets (demand side) | Ad inventory (supply side) |
+| **Interference handling** | Eliminated by construction | Assumed away via SUTVA |
+| **Bias risk** | None (isolated worlds) | Present for throttled campaigns |
+| **Infrastructure cost** | High (budget tracking, separate auctions) | Medium (clustering + ML assignment) |
+| **Throughput gain** | N/A (designed for bias, not throughput) | 30-40% |
+| **Budget density requirement** | Yes (campaigns need sufficient spend) | No |
+| **Best for** | High-stakes bidding/budget experiments | Throughput-constrained ranking experiments |
+
+**Limitations:**
+- SUTVA assumption is strong — budget effects, throttling, and cross-cluster user behavior changes can violate it
+- Bias from SUTVA violations is not measured in the A/A test evaluation (A/A tests validate variance, not bias)
+- Clustering quality degrades as ad turnover increases between graph algorithm refreshes
+- The bias-variance tradeoff (controlled by $\beta$) lacks a formal framework for optimal selection
+- Validated only with 2 clusters; scaling to more clusters may degrade auction purity
+
+**When to Use:**
+- Experimentation platform has hit throughput bottleneck and regression adjustment gains have saturated
+- Experiments test changes unlikely to significantly shift auction win rates (late-stage ranking models, ad quality improvements)
+- Affected campaigns are mostly unthrottled (no binding budget constraints)
+- Platform has graph infrastructure to support the clustering algorithm
+
+**When to Use Budget-Split Instead:**
+- Testing bidding algorithms, budget optimization, or pacing changes
+- Significant fraction of affected campaigns are throttled
+- Unbiased estimation is critical (high-stakes launch decisions)
+
+**Connection to Other Sections:**
+- **Budget-Split (above):** Direct alternative for ad marketplace experiments. Budget-Split eliminates interference by construction; ACURT assumes it away for throughput gains. Complementary in a portfolio: Budget-Split for high-stakes experiments, ACURT for throughput-constrained ranking tests.
+- **Section 2.1-2.2 (CUPED/CUPAC):** ACURT is positioned as complementary to regression adjustment — it targets a different variance component (within-user cross-cluster covariance) than CUPED (individual-level noise). The gains should stack, though the marginal benefit of ACURT on top of CUPED is not reported.
+- **Section 4.3-4.5 (Interleaving):** Conceptually similar variance reduction mechanism — both exploit within-user comparisons. Interleaving compares ranking variants within the same query; ACURT compares treatment assignments within the same user across ad clusters.
+
 #### Hybrid Approaches
 
 Many platforms combine methods:
@@ -2441,6 +2527,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | **Causal Clustering** | 5.1 | Optimal cluster formation | Very Good | High | Network-based interference |
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
+| **ACURT** | 5.1 | Eliminates within-user cross-cluster covariance | Good (SUTVA-dependent) | Medium | Ad marketplace throughput |
 | **Equilibrium Correction** | 5.1 | Structural modelling | Excellent | Very High | Pricing/allocation experiments |
 | **Two-Sided Randomisation** | 5.1 | Optimal side selection | Good | Medium | Two-sided platforms |
 | **Multiple Randomisation** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
@@ -2452,6 +2539,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | Scenario | Recommended Method | Why |
 |----------|-------------------|-----|
 | Ad marketplace with budget competition | Budget-Split | Eliminates cannibalisation |
+| Ad marketplace needing more throughput | ACURT | 30-40% more simultaneous experiments (unthrottled campaigns) |
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
 | Many small markets | Cluster Randomisation | Standard approach, sufficient power |
 | Network data available, strong spillovers | Causal Clustering | Optimises cluster boundaries for interference |
@@ -2623,6 +2711,7 @@ The paper validates on a simulation where $F_0 = N(0,1)$ with measurement error 
 | **Causal Clustering** | 5.1 | Marketplace | Optimal cluster design | 20-40% vs random | High | Network interference |
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
+| **ACURT** | 5.1 | Marketplace | Eliminates cross-cluster covariance | 30-40% throughput | Medium | Ad marketplace throughput |
 | **Equilibrium Correction** | 5.1 | Marketplace | Structural modelling | Bias correction | Very High | Pricing experiments |
 | **Two-Sided Randomisation** | 5.1 | Marketplace | Optimal side selection | Bias reduction | Medium | Two-sided platforms |
 | **Multiple Randomisation** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
