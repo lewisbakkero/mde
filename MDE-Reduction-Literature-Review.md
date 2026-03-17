@@ -115,6 +115,7 @@ Methods from different categories can be combined. Variance reduction lowers the
 | **Sequential (mSPRT)** | N/A (time savings) | Medium (weeks) | Medium | None | Continuous data stream | Experiments needing early decisions |
 | **Budget-Split** | 30-50% vs cluster | High (months) | High | Low | Budget isolation infra | Ad marketplace experiments |
 | **ACURT** | 30-40% throughput | High (months) | **High** (clustering) | Low | Ad auction graph + ML infra | Ad marketplace throughput bottleneck |
+| **Parallel FPPE** | Bias correction | High (months) | **High** (clustering + FPPE) | Low | Ad auction graph + FPPE solver | Ad marketplace throughput + bias correction |
 
 *CUPAC gain over CUPED: Meta-analyses from Booking.com/DoorDash show ~80% of metrics see <5% marginal gain from ML over linear CUPED. Only invest if linear R² < 0.5.
 
@@ -164,7 +165,7 @@ Methods from different categories can be combined. Variance reduction lowers the
 | **Ranking algorithm** | Interleaving | CUPED (additive) | Switchback (overkill) |
 | **Pricing changes** | Switchback | Cluster randomisation | CUPED alone (interference) |
 | **Ad creative testing** | CUPED | Stratification by advertiser | Budget-split (unnecessary) |
-| **Bidding algorithm** | Budget-split | Switchback | Standard A/B (interference) |
+| **Bidding algorithm** | Budget-split | Parallel FPPE / Switchback | Standard A/B (interference) |
 | **Revenue metrics** | Winsorisation + CUPED | EVT-based robust | Raw metrics (heavy tails) |
 | **Phased rollout** | Modern DiD (Callaway-Sant'Anna) | Stacked DiD | TWFE (biased with heterogeneity) |
 | **Recommendation model** | Interleaving | CUPED | Cluster (wrong unit) |
@@ -332,6 +333,7 @@ PROCEED: What are you testing?
 ├─► Marketplace/pricing experiment?
 │   └─► YES → Is budget interference a concern?
 │             ├─► YES → Use BUDGET-SPLIT or SWITCHBACK
+│             │         Need more throughput? → ACURT (low throttling) or PARALLEL FPPE (formal bias correction)
 │             └─► NO  → Use CLUSTER RANDOMISATION
 │
 ├─► Standard UI/feature experiment?
@@ -2181,17 +2183,19 @@ Ad campaigns churn constantly, so the graph-based algorithm can't run continuous
 - 40% throughput increase for 3-week experiments
 - MDE held constant
 
-**ACURT vs. Budget-Split:**
+**Budget-Split vs. ACURT vs. Parallel Submarket FPPE:**
 
-| Dimension | Budget-Split | ACURT |
-|-----------|-------------|-------|
-| **What's partitioned** | Advertiser budgets (demand side) | Ad inventory (supply side) |
-| **Interference handling** | Eliminated by construction | Assumed away via SUTVA |
-| **Bias risk** | None (isolated worlds) | Present for throttled campaigns |
-| **Infrastructure cost** | High (budget tracking, separate auctions) | Medium (clustering + ML assignment) |
-| **Throughput gain** | N/A (designed for bias, not throughput) | 30-40% |
-| **Budget density requirement** | Yes (campaigns need sufficient spend) | No |
-| **Best for** | High-stakes bidding/budget experiments | Throughput-constrained ranking experiments |
+| Dimension | Budget-Split (Liu et al. 2021) | ACURT (Bakhitov et al. 2024) | Parallel Submarket FPPE (Liao et al. 2025) |
+|-----------|-------------------------------|------------------------------|-------------------------------------------|
+| **What's partitioned** | Advertiser budgets (demand side) | Ad inventory (supply side) | Market into submarkets (bipartite graph clustering) |
+| **Interference handling** | Eliminated by construction | Assumed away via SUTVA | Modelled as supply contamination, corrected via debiasing |
+| **Bias risk** | None (isolated worlds) | Present for throttled campaigns | o(α) residual bias (second-order); first-order bias removed |
+| **Infrastructure cost** | High (budget tracking, separate auctions) | Medium (clustering + ML assignment) | High (clustering + FPPE solver + debiasing pipeline) |
+| **Throughput gain** | N/A (designed for bias, not throughput) | 30-40% | K-fold (one experiment per submarket) |
+| **Budget density requirement** | Yes (campaigns need sufficient spend) | No | No (budgets shared across submarkets) |
+| **Inference theory** | Standard CIs | Standard CIs | Asymptotic normality with plug-in variance estimator |
+| **Finite-sample coverage** | N/A | Not validated (A/A tests only) | ~83-88% for β, ~81-100% for revenue (below 95% nominal) |
+| **Best for** | High-stakes bidding/budget experiments | Throughput-constrained ranking experiments | Throughput + formal bias correction for auction experiments |
 
 **Limitations:**
 - SUTVA assumption is strong — budget effects, throttling, and cross-cluster user behavior changes can violate it
@@ -2215,6 +2219,84 @@ Ad campaigns churn constantly, so the graph-based algorithm can't run continuous
 - **Budget-Split (above):** Direct alternative for ad marketplace experiments. Budget-Split eliminates interference by construction; ACURT assumes it away for throughput gains. Complementary in a portfolio: Budget-Split for high-stakes experiments, ACURT for throughput-constrained ranking tests.
 - **Section 2.1-2.2 (CUPED/CUPAC):** ACURT is positioned as complementary to regression adjustment — it targets a different variance component (within-user cross-cluster covariance) than CUPED (individual-level noise). The gains should stack, though the marginal benefit of ACURT on top of CUPED is not reported.
 - **Section 4.3-4.5 (Interleaving):** Conceptually similar variance reduction mechanism — both exploit within-user comparisons. Interleaving compares ranking variants within the same query; ACURT compares treatment assignments within the same user across ad clusters.
+
+#### Parallel Budget-Controlled A/B Testing with Debiased FPPE Inference
+
+**Source:** [Interference Among First-Price Pacing Equilibria: A Bias and Variance Analysis](https://proceedings.iclr.cc/paper_files/paper/2025/file/b6ffbbacbe2e56f2ec9a0da907382b4a-Paper-Conference.pdf) by Liao, Kroer, Leonenkov, Schrijvers, Shi, Stier-Moses, and Zhang (Columbia + Meta, ICLR 2025)
+
+**Foundational work:** [Statistical Inference and A/B Testing for First-Price Pacing Equilibria](https://proceedings.mlr.press/v202/liao23c.html) by Liao & Kroer (ICML 2023) — establishes the statistical inference framework for FPPE that this paper builds on.
+
+**Core Idea:** Increase A/B test throughput in ad auction markets by clustering advertisers into K submarkets and running parallel budget-split experiments within each. Unlike ACURT (which assumes away cross-cluster interference via SUTVA), this paper formally models the residual interference as supply contamination within the First-Price Pacing Equilibrium (FPPE) framework, then derives a debiased estimator that removes first-order bias with formal asymptotic guarantees.
+
+**The Problem with Existing Approaches:**
+- Budget-Split (Liu et al. 2021) eliminates interference but limits throughput to one experiment at a time
+- ACURT (Bakhitov et al. 2024) increases throughput but assumes away interference (SUTVA), which fails for throttled campaigns
+- This paper provides the missing piece: throughput scaling with formal bias correction
+
+**Method:**
+
+1. **Market segmentation:** Cluster advertisers into K groups by minimising cross-cluster edges in the advertiser-user bipartite graph (similar to ACURT's clustering, but applied to budget-split experiments)
+2. **Parallel experiments:** Run independent budget-split A/B tests within each submarket
+3. **Contamination model:** Items attracting bids from multiple submarkets ("bad items") are modelled as supply contamination: $s_\alpha = \alpha s' + (1-\alpha)s$, where $s$ is the clean supply and $s'$ is the cross-submarket supply. The contamination fraction $\alpha$ is observable from data
+4. **Debiased surrogate:** Using the convex program characterisation of FPPE (Eisenberg-Gale dual), compute a first-order Taylor correction via directional derivatives of the equilibrium pacing multipliers:
+   $\tilde{\beta}^* = \beta^*_\alpha + \alpha \cdot (-(P_\alpha H_\alpha P_\alpha)^\dagger \delta_\alpha)$
+   This removes O(α) bias, leaving only o(α) residual
+5. **Plug-in estimator:** Estimate the Hessian $H_\alpha$, the active-constraint indicator $P_\alpha$, and the contamination direction $\delta_\alpha$ from observed auction data. Under a "bid gap" condition (no ties), the Hessian simplifies to $\text{Diag}(b_i / (\beta^*_{\alpha,i})^2)$
+
+**Assumptions (Critical):**
+
+| Assumption | What It Means | What Happens If Violated |
+|------------|---------------|-------------------------|
+| **SMO (Smoothness)** | Tied bids are measure-zero in the limit market | Hessian of EG program is not well-defined; debiasing formula breaks |
+| **SCS (Strict Complementary Slackness)** | Unpaced buyers have strictly positive leftover budget | Degenerate buyers at the boundary; directional derivative may not exist |
+| **Known α** | Contamination fraction is observable | Can be estimated from data (which items are "bad" is known) |
+| **Bid gap condition** (for simplified Hessian) | $E[1/\text{bidgap}] < \infty$ | Must use finite-difference Hessian estimation instead (slower convergence) |
+| **Submarkets are separated** | Buyers only value items in their own submarket (plus bad items) | Model doesn't capture within-submarket interference |
+
+**MDE Equation Modification:**
+This paper primarily addresses bias rather than variance. The naive estimator from the contaminated market has:
+$\hat{\tau}_{naive} = \tau_{true} + \underbrace{O(\alpha)}_{\text{interference bias}}$
+
+The debiased estimator achieves:
+$\hat{\tau}_{debiased} = \tau_{true} + o(\alpha) + O(1/\sqrt{t})$
+
+where $t$ is the number of observed items. The $O(1/\sqrt{t})$ term has a known asymptotic distribution (Theorem 3), enabling confidence interval construction.
+
+**Empirical Validation:**
+- 99 paired experiments at Meta comparing parallel design vs. full budget-split: 75% sign agreement (79% with guardrail metric), vs. 81.5% theoretical optimum at 90% confidence
+- Semi-synthetic experiments (40 buyers, 10K items, Meta auction data): debiased surrogate bias is substantially smaller than contaminated limit quantities across all α values
+- Coverage of β̂ estimator: ~83-88% (below 95% nominal), attributed to finite-sample variance underestimation
+- Revenue CI coverage: 81-100% depending on method (analytic vs. bootstrap)
+
+**Key Findings:**
+- First formal framework for analysing interference in parallel submarket A/B tests using equilibrium theory
+- Debiasing removes first-order bias; residual is second-order in the contamination fraction
+- The convex program structure of FPPE is essential — it enables closed-form directional derivatives via sensitivity analysis of the Eisenberg-Gale program
+- Finite-sample coverage is below nominal, suggesting variance estimation needs improvement (open problem)
+
+**Limitations:**
+- Requires FPPE solver infrastructure to compute equilibrium pacing multipliers from auction data
+- Finite-sample coverage below nominal (83-88% vs. 95%) — variance estimator underestimates in practice
+- Only validated for first-price auctions; second-price analogue is harder due to equilibrium multiplicity
+- Regularity conditions (SMO, SCS) may not hold in all markets
+- Debiasing is first-order only; for large α (many bad items), higher-order bias may matter
+- Computational cost of Hessian estimation via finite differences scales as O(n²) in number of buyers
+
+**When to Use:**
+- Running parallel A/B tests across ad submarkets and need formal bias correction
+- Budget-Split throughput is insufficient and ACURT's SUTVA assumption is too strong (throttled campaigns)
+- Need confidence intervals with asymptotic validity guarantees, not just point estimates
+- First-price auction market with budget-constrained advertisers
+
+**When to Use Budget-Split or ACURT Instead:**
+- Budget-Split: when unbiased estimation is critical and throughput is not a constraint
+- ACURT: when affected campaigns are mostly unthrottled and throughput is the binding constraint (simpler infrastructure, no FPPE solver needed)
+
+**Connection to Other Sections:**
+- **Budget-Split (above):** Liao et al.'s parallel design is built on top of budget-split — each submarket runs its own budget-split experiment. The contribution is handling the residual cross-submarket interference that budget-split within a submarket cannot eliminate.
+- **ACURT (above):** Solves the same throughput problem but with different guarantees. ACURT assumes SUTVA; Liao et al. models and corrects the SUTVA violation. Shares an author (Leonenkov). Complementary: ACURT for low-risk ranking tests, Liao et al. for high-stakes experiments needing formal guarantees.
+- **Experimenting in Equilibrium (Wager & Xu, below):** Both address equilibrium-mediated interference. Wager & Xu use structural estimation of supply/demand curves; Liao et al. exploit the convex program structure of FPPE for a more direct debiasing approach specific to first-price auctions.
+- **Two-Sided Randomisation (Johari et al., below):** Both analyse bias from interference in platform experiments. Johari et al. focus on which side to randomise; Liao et al. focus on correcting bias after a specific (submarket clustering) design is chosen.
 
 #### Hybrid Approaches
 
@@ -2367,6 +2449,32 @@ $\text{Bias} \propto p_D \cdot p_S \cdot \tau_{true}$
 - **Equilibrium Correction (Wager & Xu):** Provides structural approach to correct bias
 - **Budget-Split:** A form of supply-side randomisation for ad platforms
 - **Switchback:** Time-based alternative when spatial clustering isn't feasible
+
+#### Equilibrium-Aware Experimentation: Landscape Comparison
+
+The following table positions all five papers that address equilibrium-mediated interference in marketplace A/B testing. They share a common problem — experiments perturb market equilibrium, biasing treatment effect estimates — but differ in market model, what they contribute (design vs. correction vs. both), and domain specificity.
+
+| Dimension | Wager & Xu (2021) | Johari et al. (2022) | Budget-Split (Liu 2021) | ACURT (Bakhitov 2024) | Parallel FPPE (Liao 2025) |
+|-----------|-------------------|----------------------|------------------------|-----------------------|--------------------------|
+| **Problem** | Equilibrium shift from treatment | Bias from randomisation side choice | Budget interference in auctions | Throughput bottleneck in ad experiments | Cross-submarket interference in parallel experiments |
+| **Market model** | General supply/demand curves | Two-sided matching platform | Ad auction (implicit) | Ad auction (implicit) | First-price pacing equilibrium (FPPE) |
+| **Equilibrium concept** | Structural (supply/demand) | Matching equilibrium | None (design eliminates need) | None (SUTVA assumes away) | Convex program (Eisenberg-Gale) |
+| **Contribution type** | Bias correction via structural estimation | Bias analysis + design guidance | Experiment design | Experiment design + variance reduction | Experiment design + bias correction + inference |
+| **Interference source** | Treatment shifts market prices/quantities | Cross-side reallocation | Budget cannibalisation across arms | Cross-cluster auction competition | "Bad items" spanning multiple submarkets |
+| **How interference is handled** | Structural model extrapolation | Choose optimal randomisation side | Eliminated by budget isolation | Assumed away (SUTVA) | Modelled as supply contamination, corrected via debiasing |
+| **Formal bias guarantee** | Depends on structural model correctness | Bias ∝ 1/market thickness | Unbiased by design | Unbiased only if SUTVA holds | o(α) residual bias (first-order removed) |
+| **Inference theory** | Structural estimation CIs | Bias bounds | Standard | Standard | Asymptotic normality + plug-in variance |
+| **Domain specificity** | General marketplaces | Two-sided platforms | Ad auctions | Ad auctions | Ad auctions (first-price) |
+| **Validated on** | Theoretical + simulations | Theoretical + ride-sharing simulations | Meta production | Meta A/A tests | Meta (99 experiments) + semi-synthetic |
+
+**How to read this table:** Moving left to right, the papers become increasingly specific to ad auction markets but provide stronger operational guarantees. Wager & Xu and Johari et al. provide general frameworks applicable to any marketplace; Budget-Split, ACURT, and Liao et al. are purpose-built for ad auction experimentation. The key tradeoff is generality vs. actionability: Wager & Xu's structural approach works anywhere but requires economic modelling expertise; Liao et al.'s FPPE-based debiasing is narrower but gives you a concrete algorithm with asymptotic guarantees.
+
+**Practical selection guide:**
+- Need to understand equilibrium effects in a general marketplace → Wager & Xu
+- Choosing which side to randomise in a two-sided platform → Johari et al.
+- Running a single high-stakes ad experiment with budget interference → Budget-Split
+- Running many simultaneous ad experiments, low throttling risk → ACURT
+- Running many simultaneous ad experiments, need formal bias correction → Parallel FPPE (Liao et al.)
 
 ### 5.2 Decomposing Interference: Multiple Randomisation Designs
 
@@ -2529,6 +2637,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 | **Synthetic Control** | 5.1 | Weighted counterfactual construction | Good | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Eliminates budget interference | Excellent | High | Ad marketplaces |
 | **ACURT** | 5.1 | Eliminates within-user cross-cluster covariance | Good (SUTVA-dependent) | Medium | Ad marketplace throughput |
+| **Parallel Submarket FPPE** | 5.1 | First-order debiasing via FPPE sensitivity analysis | Very Good (o(α) residual) | High | Ad marketplace throughput + bias correction |
 | **Equilibrium Correction** | 5.1 | Structural modelling | Excellent | Very High | Pricing/allocation experiments |
 | **Two-Sided Randomisation** | 5.1 | Optimal side selection | Good | Medium | Two-sided platforms |
 | **Multiple Randomisation** | 5.2 | Separate direct/indirect effects | Excellent | High | Effect decomposition |
@@ -2541,6 +2650,7 @@ Where $\epsilon_{interference}$ captures the "price of interference"—additiona
 |----------|-------------------|-----|
 | Ad marketplace with budget competition | Budget-Split | Eliminates cannibalisation |
 | Ad marketplace needing more throughput | ACURT | 30-40% more simultaneous experiments (unthrottled campaigns) |
+| Ad marketplace throughput + formal bias correction | Parallel Submarket FPPE (Liao et al.) | K-fold throughput with debiased inference; handles throttled campaigns |
 | Few large markets to treat | Synthetic Control | Constructs counterfactual from donor pool |
 | Many small markets | Cluster Randomisation | Standard approach, sufficient power |
 | Network data available, strong spillovers | Causal Clustering | Optimises cluster boundaries for interference |
@@ -2713,6 +2823,7 @@ The paper validates on a simulation where $F_0 = N(0,1)$ with measurement error 
 | **Synthetic Control** | 5.1 | Marketplace | Weighted counterfactual | Varies | Medium-High | Few treated units |
 | **Budget-Split** | 5.1 | Marketplace | Eliminates interference | 30-50% vs cluster | High | Ad marketplaces |
 | **ACURT** | 5.1 | Marketplace | Eliminates cross-cluster covariance | 30-40% throughput | Medium | Ad marketplace throughput |
+| **Parallel Submarket FPPE** | 5.1 | Marketplace | First-order debiasing via FPPE | Bias correction + K-fold throughput | High | Ad auction parallel experiments |
 | **Equilibrium Correction** | 5.1 | Marketplace | Structural modelling | Bias correction | Very High | Pricing experiments |
 | **Two-Sided Randomisation** | 5.1 | Marketplace | Optimal side selection | Bias reduction | Medium | Two-sided platforms |
 | **Multiple Randomisation** | 5.2 | Marketplace | Separate effects | Enables identification | High | Multi-level data |
@@ -2785,6 +2896,9 @@ The paper validates on a simulation where $F_0 = N(0,1)$ with measurement error 
 | GST | Futility Stopping | ✓ | Efficacy + futility boundaries |
 | mSPRT | Futility Stopping | ✓ | Add futility to continuous monitoring |
 | Switchback | Budget-Split | ~ | Depends on context |
+| Parallel Submarket FPPE | CUPED | ✓ | Debiasing + within-submarket variance reduction |
+| Parallel Submarket FPPE | Budget-Split | ✓ | Budget-split within each submarket (this is the design) |
+| Parallel Submarket FPPE | ACURT | ✗ | Competing designs for the same throughput problem |
 | Interleaved | CUPED | ✓ | Additional variance reduction |
 | Cross-Experiment | CUPED | ✓ | Prior + covariate adjustment |
 | Cross-Experiment | Sequential | ✓ | Informative prior + early stopping |
