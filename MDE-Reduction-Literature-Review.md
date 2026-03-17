@@ -1,4 +1,4 @@
-# Quick Literature Review (as of Dec'25): Techniques to Reduce Minimum Detectable Effect (MDE) in A/B Test Platforms
+# Quick Literature Review (as of Mar'26): Techniques to Reduce Minimum Detectable Effect (MDE) in A/B Test Platforms
 
 ## Executive Summary
 
