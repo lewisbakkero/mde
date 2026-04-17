@@ -6,7 +6,7 @@ AI doesn't dissolve *all* constraints simultaneously (which would violate ToC), 
 
 ## Beyond the "Pipeline"
 
-In a traditional setup, we move in a linear sequence: AI → code → review → testing → experimentation. If we treat AI only as a "local speed-up" for code, we fall into the **Productivity J-Curve**: a period where we spend more on tools and training, only to see output dip as we struggle to manage the new flow [12](#ref-12) [13](#ref-13). 
+In a traditional setup, we move in a linear sequence: AI → code → review → testing → experimentation. If we treat AI only as a "local speed-up" for code, we fall into the **Productivity J-Curve**: a period where we spend more on tools and training, only to see output dip as we struggle to manage the new flow [13](#ref-13). 
 
 For companies willing to invest in complementary organisational changes beyond the tools themselves to get them past the output dip, the real power of AI is that it elevates multiple constraints closer to the binding limit simultaneously, compressing the overall system throughput. It doesn't just write code; it assists in hypothesising, refactoring, documentation, analysing results, and test-scaffolding, which lowers the **Total Cost of Ownership (TCO)** of new features. [17](#ref-17) The bottleneck moves from "execution" (can we build it?) to **Decision Latency**.
 
@@ -36,9 +36,7 @@ AI reduces the cost of evaluating each point in this space from weeks to hours.
 
 Instead of a factory line, think of AI-augmented engineering as a research lab. AI increases the "dimensionality" of our search. Instead of building one version of a feature to see if it works, we can prototype multiple variations in parallel. 
 
-This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning** [which could be measured as CPVL = (Engineering Hours + Token Costs + Traffic Costs) / Validated Experiments]. 
-
-where Traffic cost = $0.10/user opportunity cost
+This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning** [which could be measured as CPVL = (Engineering Hours + Token Costs) / Validated Experiments
 
 Traditional: 200 eng-hours ($20K) + 0 tokens + 1M users → **$20K CPVL**  
 AI-Native: 20 eng-hours ($2K) + 500K tokens ($500) + 100K users → **$2.6K CPVL** (8x reduction)
@@ -71,8 +69,8 @@ It is a mistake to think AI only benefits "mature" incumbents or "agile" startup
 | Org Type | AI Advantages | AI Disadvantages | Net Effect |
 |----------|---------------|------------------|------------|
 | **Incumbents** | Data, traffic, infra | Inertia Debt, governance drag | **Neutral+** (if they move fast) |
-| **Startups** | Native workflows, low coordination cost | No traffic, weak priors | **Neutral** (traffic kills them) |
-| **AI-Native** | Search-optimized org design | Scale limitations | **Winners** |
+| **Startups** | Native workflows, low coordination cost | No traffic, weak priors | **Neutral** (traffic constrains them, funnels help)) |
+| **AI-Native** | Search-optimized org design | Scale limitations | **Winners (small/medium scale)** |
 
 The winners won't be the ones who write the most code (actually these will see AI-related costs explode when VC subsidies give way to ROI pressure); they will be the ones who redesign their organisational capital to absorb change without breaking or going bankrupt as token utilisation (led by poor choices in how/when/where to use AI) explodes. [13](#ref-13)
 
@@ -92,7 +90,7 @@ AI is an accelerator that exposes the true shape of your organisation.
 | DL >3 days | **Decision Latency** | Parallel approval tracks |
 | Win rate <25% | **Idea quality** | Multi-layer validation funnel |
 
-Success in the AI era is about how quickly you can navigate the search space to reducing time spent on bad hypotheses and increasing throughput of validated decisions. [15](#ref-15)
+Success in the AI era is about how quickly you can navigate the search space by reducing time spent on bad hypotheses and increasing throughput of validated decisions. [15](#ref-15)
 
 ---
 
