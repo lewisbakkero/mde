@@ -1,26 +1,44 @@
 # The Shift from Throughput to Search: How AI Redefines Software Economics
 
-For decades, we viewed software engineering as a factory: an assembly line where "requirements" were turned into "code" through a series of gates (Think fo the wonderful 'The Phoenix Project' book and WIP in Kanban). In this world, we followed the **"Weakest Link" principle** (often called the Theory of Constraints). If you speed up the machines at the start of the line (code generation) but don't widen the gates later on (review, testing, or decision-making), you don't actually ship more value. You just create a pile-up of unfinished work. [1](#ref-1) [2](#ref-2) [16](#ref-16)
+For decades, we viewed software engineering as a factory: an assembly line where "requirements" were turned into "code" through a series of gates (Think of the classic 'The Phoenix Project' book and WIP in Kanban). In this world, we followed the **"Weakest Link" principle** (often called the bottleneck principle in Theory of Constraints). If you speed up the machines at the start of the line (code generation) but don't widen the gates later on (review, testing, or decision-making), you don't actually ship more value. You just create a pile-up of unfinished work. [1](#ref-1) [2](#ref-2) [16](#ref-16)
 
-But AI is shifting software from a **production problem** to a **search problem**. [14](#ref-14)
+AI doesn't dissolve *all* constraints simultaneously (which would violate ToC), but it can elevate *multiple* subconstraints closer to the binding limit, making the system behave less predictably than a simple linear pipeline; this can be conceptualised as moving software from a **production problem** to a **search problem**. [14](#ref-14)
 
 ## Beyond the "Pipeline"
 
-In a traditional setup, we move in a linear sequence: AI → code → review → testing → experimentation. If we treat AI only as a "local speed-up" for code, we fall into the **Productivity J-Curve**: a period where we spend more on tools and training, only to see output dip as we struggle to manage the new flow [12](#ref-12) [13](#ref-13). This helps explain why we see a new version of Solow's paradox ('You can see the computer age everywhere but in the productivity statistics').
+In a traditional setup, we move in a linear sequence: AI → code → review → testing → experimentation. If we treat AI only as a "local speed-up" for code, we fall into the **Productivity J-Curve**: a period where we spend more on tools and training, only to see output dip as we struggle to manage the new flow [12](#ref-12) [13](#ref-13). 
 
-For companies willing/able to make the 1:9 ration between AI and broader organisational adjustment costs to get them past the output dip, the real power of AI is that it dissolves multiple constraints at once. It doesn't just write code; it assists in hypothesising, refactoring, documentation, analysing results, and test-scaffolding, which lowers the **Total Cost of Ownership (TCO)** of new features. [17](#ref-17) The bottleneck moves from "execution" (can we build it?) to **Decision Latency**.
+For companies willing to invest in complementary organisational changes beyond the tools themselves to get them past the output dip, the real power of AI is that it dissolves multiple constraints at once. It doesn't just write code; it assists in hypothesising, refactoring, documentation, analysing results, and test-scaffolding, which lowers the **Total Cost of Ownership (TCO)** of new features. [17](#ref-17) The bottleneck moves from "execution" (can we build it?) to **Decision Latency**.
 
 ### Defining Decision Latency
-Decision Latency is the hidden cost that occurs when intelligence moves faster than authorisation. It isn't a single "wait time"; it is the sum of three distinct frictions:
-1. **Prioritisation:** The struggle to decide which 5 ideas out of 50 deserve resources.
-2. **Cross-functional Coordination:** The "buy-in" required from legal, brand, product, etc stakeholders.
-3. **Governance:** The architectural and safety approvals needed to ensure a high-speed change doesn't cause a high-scale failure. [19](#ref-19)
+
+Decision Latency = Prioritization Time + Coordination Time + Governance Time
+
+Where:
+- **Prioritization Time** = Days from idea generation to resource commitment
+- **Coordination Time** = Days from engineering kickoff to stakeholder alignment  
+- **Governance Time** = Days from code-complete to production approval  [19](#ref-19)
+
+DL becomes the binding constraint when:  
+`AI Throughput > 1 / DL`
+
+This happens when AI generates 50 feature hypotheses/week but DL > 10 days/hypothesis.
+
+**What makes this a "search problem"?**
+- **Search Space**: All possible features, UIs, algorithms, prompts
+- **Objective**: Revenue/customer value per week 
+- **Constraints**: Engineering bandwidth, traffic, Decision Latency
+- **Feedback**: A/B results, user metrics, business KPIs
+
+AI reduces the cost of evaluating each point in this space from weeks to hours.
 
 ## From "Factory" to "Research Lab"
 
 Instead of a factory line, think of AI-augmented engineering as a research lab. AI increases the "dimensionality" of our search. Instead of building one version of a feature to see if it works, we can prototype multiple variations in parallel. 
 
-This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning**. By lowering the **Marginal Cost of Failure**, AI allows us to explore a wider search space. The real economic gain comes from the **better allocation of engineering effort**: discovering that a feature is a "loser" early on allows the team to pivot resources to higher-impact work before significant capital is sunk into implementation. [14](#ref-14)
+This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning** [which could be measured as CPVL = (Engineering Hours + Token Costs + Traffic Costs) / Validated Experiments]. Traditional: 200 engineer-hours per A/B test → $20K CPVL; AI-Native: 20 engineer-hours + LLM eval → $2K CPVL (10x reduction).
+
+By lowering the **Marginal Cost of Failure**, AI allows us to explore a wider search space. The real economic gain comes from the **better allocation of engineering effort**: discovering that a feature is a "loser" early on allows the team to pivot resources to higher-impact work before significant capital is sunk into implementation. [14](#ref-14)
 
 ## The Transformation of Experimentation
 
@@ -37,8 +55,13 @@ However, AI introduces the possibility of a "multi-layered" validation funnel, t
 
 It is a mistake to think AI only benefits "mature" incumbents or "agile" startups. Instead, AI **redistributes advantage** toward organisations that can compress the loop between hypothesis and deployment. [14](#ref-14)
 
-* **Incumbents** have the data and infrastructure, but are often hamstrung by "Inertia Debt"—the legacy governance and compliance friction that makes Decision Latency skyrocket.
-* **Startups** lack the traffic for massive A/B testing, but can restructure their entire workflow around AI-native "search" models from day one.
+**Who actually wins? It's more conditional than categorical:**
+
+| Org Type | AI Advantages | AI Disadvantages | Net Effect |
+|----------|---------------|------------------|------------|
+| **Incumbents** | Data, traffic, infra | Inertia Debt, governance drag | **Neutral+** (if they move fast) |
+| **Startups** | Native workflows, low coordination cost | No traffic, weak priors | **Neutral** (traffic kills them) |
+| **AI-Native** | Search-optimized org design | Scale limitations | **Winners** |
 
 The winners won't be the ones who write the most code (actually these will see AI-related costs explode when VC subsidies give way to ROI pressure); they will be the ones who redesign their organisational capital to absorb change without breaking or going bankrupt as token utilisation (led by poor choices in how/when/where to use AI) explodes. [13](#ref-13)
 
