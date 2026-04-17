@@ -1,6 +1,6 @@
 # The Shift from Throughput to Search: How AI Redefines Software Economics
 
-For decades, we viewed software engineering as a factory: an assembly line where "requirements" were turned into "code" through a series of gates (Think of the classic 'The Phoenix Project' book and WIP in Kanban). In this world, we followed the **"Weakest Link" principle** (bottleneck principle (Theory of Constraints/ToC). If you speed up the machines at the start of the line (code generation) but don't widen the gates later on (review, testing, or decision-making), you don't actually ship more value. You just create a pile-up of unfinished work. [1](#ref-1) [2](#ref-2) [16](#ref-16)
+For decades, we viewed software engineering as a factory: an assembly line where "requirements" were turned into "code" through a series of gates (Think of the classic 'The Phoenix Project' book and WIP in Kanban). In this world, we followed the **"Weakest Link" principle** (the bottleneck principle from Theory of Constraints (ToC)). If you speed up the machines at the start of the line (code generation) but don't widen the gates later on (review, testing, or decision-making), you don't actually ship more value. You just create a pile-up of unfinished work. [1](#ref-1) [2](#ref-2) [16](#ref-16)
 
 AI doesn't dissolve *all* constraints simultaneously (which would violate ToC), but it can elevate *multiple* subconstraints closer to the binding limit, making the system behave less predictably than a simple linear pipeline; this can be conceptualised as moving software from a **production problem** to a **search problem**. [14](#ref-14)
 
@@ -8,7 +8,7 @@ AI doesn't dissolve *all* constraints simultaneously (which would violate ToC), 
 
 In a traditional setup, we move in a linear sequence: AI → code → review → testing → experimentation. If we treat AI only as a "local speed-up" for code, we fall into the **Productivity J-Curve**: a period where we spend more on tools and training, only to see output dip as we struggle to manage the new flow [12](#ref-12) [13](#ref-13). 
 
-For companies willing to invest in complementary organisational changes beyond the tools themselves to get them past the output dip, the real power of AI is that it dissolves multiple constraints at once. It doesn't just write code; it assists in hypothesising, refactoring, documentation, analysing results, and test-scaffolding, which lowers the **Total Cost of Ownership (TCO)** of new features. [17](#ref-17) The bottleneck moves from "execution" (can we build it?) to **Decision Latency**.
+For companies willing to invest in complementary organisational changes beyond the tools themselves to get them past the output dip, the real power of AI is that it elevates multiple constraints closer to the binding limit simultaneously, compressing the overall system throughput. It doesn't just write code; it assists in hypothesising, refactoring, documentation, analysing results, and test-scaffolding, which lowers the **Total Cost of Ownership (TCO)** of new features. [17](#ref-17) The bottleneck moves from "execution" (can we build it?) to **Decision Latency**.
 
 ### Defining Decision Latency
 
@@ -22,11 +22,11 @@ Where:
 DL becomes binding when:  
 `AI Throughput (hypotheses/week) > Org Capacity = 7 / DL (days/hypothesis)`
 
-**Example:** 50 hypotheses/week > 7/10 days = 0.7 hypotheses/week → **DL is binding**
+**Example:** 20 hypotheses/week > 7/3 days = 2.3 hypotheses/week → **DL is binding**
 
 **What makes this a "search problem"?**
 - **Search Space**: All possible features, UIs, algorithms, prompts
-- **Objective**: Revenue/customer value per week 
+- **Objective**: Expected revenue impact per validated experiment 
 - **Constraints**: Engineering bandwidth, traffic, Decision Latency
 - **Feedback**: A/B results, user metrics, business KPIs
 
@@ -38,8 +38,12 @@ Instead of a factory line, think of AI-augmented engineering as a research lab. 
 
 This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning** [which could be measured as CPVL = (Engineering Hours + Token Costs + Traffic Costs) / Validated Experiments]. 
 
+where Traffic cost = $0.10/user opportunity cost
+
 Traditional: 200 eng-hours ($20K) + 0 tokens + 1M users → **$20K CPVL**  
 AI-Native: 20 eng-hours ($2K) + 500K tokens ($500) + 100K users → **$2.6K CPVL** (8x reduction)
+
+**Token Utilization Trap**: Undisciplined LLM usage can make the $500 token cost → $5K as engineers over-prompt or iterate endlessly.
 
 By lowering the **Marginal Cost of Failure**, AI allows us to explore a wider search space. The real economic gain comes from the **better allocation of engineering effort**: discovering that a feature is a "loser" early on allows the team to pivot resources to higher-impact work before significant capital is sunk into implementation. [14](#ref-14)
 
@@ -61,7 +65,7 @@ It is a mistake to think AI only benefits "mature" incumbents or "agile" startup
 **Who actually wins? It's more conditional than categorical:**
 
 **Key Terms:**
-- **AI-Native**: Teams designed around search-optimized workflows (parallel hypothesis → rapid validation → kill fast)
+- **AI-Native**: Teams designed around search-optimized workflows (parallel hypothesis → rapid validation → fast invalidation)
 - **Inertia Debt**: Legacy governance/processes that resist rapid experimentation (annual OKR cycles, 4-week code freezes, etc.)
 
 | Org Type | AI Advantages | AI Disadvantages | Net Effect |
@@ -80,13 +84,13 @@ AI is an accelerator that exposes the true shape of your organisation.
 * If your bottleneck is **Maintenance**, AI can help refactor, but it won't fix a fundamentally broken architecture. [17](#ref-17)
 * If your bottleneck is **Traffic**, AI can't create more evidence, but it can help you stop wasting your limited traffic on low-probability ideas.
 
-**Diagnose your binding constraint:**
+**Diagnose your binding constraint (illustrative benchmarks):**
 
 | Symptom | Binding Constraint | Fix |
 |---------|-------------------|-----|
-| PR backlog >2 weeks | **Review capacity** | Hire reviewers, AI code review |
-| DL >10 days | **Decision Latency** | Parallel approval tracks |
-| Win rate <10% | **Idea quality** | Multi-layer validation funnel |
+| PR backlog >48h | **Review capacity** | AI review, hire reviewers |
+| DL >3 days | **Decision Latency** | Parallel approval tracks |
+| Win rate <25% | **Idea quality** | Multi-layer validation funnel |
 
 Success in the AI era is about how quickly you can navigate the search space to reducing time spent on bad hypotheses and increasing throughput of validated decisions. [15](#ref-15)
 
