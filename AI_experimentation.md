@@ -36,7 +36,7 @@ AI reduces the cost of evaluating each point in this space from weeks to hours.
 
 Instead of a factory line, think of AI-augmented engineering as a research lab. AI increases the "dimensionality" of our search. Instead of building one version of a feature to see if it works, we can prototype multiple variations in parallel. 
 
-This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning** [which could be measured as CPVL = (Engineering Hours + Token Costs) / Validated Experiments
+This changes the economics of software. The unit of value is no longer "lines of code" but the **Cost per Validated Learning** which could be measured as CPVL = (Engineering Hours + Token Costs) / Validated Experiments
 
 Traditional: 200 eng-hours ($20K) + 0 tokens + 1M users → **$20K CPVL**  
 AI-Native: 20 eng-hours ($2K) + 500K tokens ($500) + 100K users → **$2.6K CPVL** (8x reduction)
@@ -69,7 +69,7 @@ It is a mistake to think AI only benefits "mature" incumbents or "agile" startup
 | Org Type | AI Advantages | AI Disadvantages | Net Effect |
 |----------|---------------|------------------|------------|
 | **Incumbents** | Data, traffic, infra | Inertia Debt, governance drag | **Neutral+** (if they move fast) |
-| **Startups** | Native workflows, low coordination cost | No traffic, weak priors | **Neutral** (traffic constrains them, funnels help)) |
+| **Startups** | Native workflows, low coordination cost | No traffic, weak priors | **Neutral** (traffic constrains them, funnels help) |
 | **AI-Native** | Search-optimized org design | Scale limitations | **Winners (small/medium scale)** |
 
 The winners won't be the ones who write the most code (actually these will see AI-related costs explode when VC subsidies give way to ROI pressure); they will be the ones who redesign their organisational capital to absorb change without breaking or going bankrupt as token utilisation (led by poor choices in how/when/where to use AI) explodes. [13](#ref-13)
