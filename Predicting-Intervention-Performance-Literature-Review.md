@@ -38,6 +38,194 @@ Many practitioners conflate these. They serve different purposes:
 
 ---
 
+## Common Comparison Framework
+
+**Purpose:** The rest of this review covers many methods, each born of different research traditions (econometrics, causal ML, marketing science, epidemiology, statistics). Papers typically compare a new method to one or two close siblings. That makes it hard to compare apples to apples across families. This section introduces six dimensions that apply to **every** method in the review, then rates all of them on a single table.
+
+This framework is deliberately method-agnostic. PIE is one row among many. Use it to form a quick opinion on whether a candidate method is even in the right ballpark for your problem before reading the section-level detail.
+
+### The Six Dimensions
+
+#### 1. Target Estimand
+
+What causal quantity does the method estimate? This is the single most important question. A method that estimates CATE does not solve a problem that requires a campaign-level ATT, no matter how sophisticated it is.
+
+- **ATE** — Average Treatment Effect across the whole population. Answered by a pure RCT on a representative sample.
+- **ATT** — Average Treatment Effect on the Treated. The effect on units who actually received treatment. Common in observational studies and attribution work.
+- **CATE** — Conditional ATE. The effect for a specific subgroup defined by covariates X. Target of uplift models and causal forests.
+- **Campaign-level ATT** — ATT for a specific campaign/intervention as a unit of analysis. PIE's target.
+- **Policy effect** — Expected outcome under a policy (mapping from covariates to treatment). Target of transportability, MMM, and policy learning.
+- **Early-horizon ATE** — ATE measured at a short horizon, meant to proxy a longer-horizon ATE. Target of surrogate methods.
+
+#### 2. Data Requirements
+
+What data does the method need to run?
+
+- **RCT-only** — The method runs inside a single experiment (uplift, causal forests-within-experiment, CUPED).
+- **Observational-only** — The method uses only non-experimental data (classical PSM, DML without RCT anchor). These systematically fail for ad measurement.
+- **RCT + observational (both required)** — The method explicitly combines experimental and observational data (Kallus experimental grounding, Rosenman shrinkage, target trial emulation calibrated to an RCT).
+- **Historical RCT corpus** — The method needs many past RCTs, not just one (PIE, cross-experiment meta-learning, random-effects meta-analysis).
+- **Time-series data** — The method needs pre/post time series, typically with one or a few treated units (BSTS/CausalImpact, synthetic control, MMM).
+- **Panel data across populations** — The method needs covariate and outcome data across multiple populations or sites (transportability, Hartman PATT, external validity meta-studies).
+
+#### 3. Identification Strategy
+
+How does the method argue its estimate is causal rather than merely associational? This is the assumption that makes the method work, and the one that's most often wrong.
+
+- **Randomization** — Pure RCTs and ghost ads. Strongest possible.
+- **Unconfoundedness on observables** — Classical PSM, DML. Requires that all confounders are measured. Fails in ad settings where selection bias dominates (Gordon et al. 2019).
+- **Structural modeling** — MMM, equilibrium methods. Identification comes from parametric model structure plus variation in inputs over time.
+- **Experimental grounding** — Kallus, Rosenman shrinkage. Observational model is calibrated/anchored by a smaller RCT.
+- **Parallel trends** — DiD and synthetic control. Treated and control units would have evolved similarly absent treatment.
+- **Surrogacy** — Surrogate index. Long-term outcome is conditionally independent of treatment given surrogates.
+- **Prediction under invariance** — PIE, transportability. Assumes the mapping from features to effect is stable across experiments or populations.
+
+#### 4. Extrapolation Scale
+
+How far can the method's output be applied? This is about the "scope of generalization," which is often where methods implicitly over-claim.
+
+- **Within-experiment only** — Causal forests, uplift. Output is valid only for units in the experiment's population.
+- **Across users within a population** — Target trial emulation, PSM (when it works). Generalises to similar users in the same source population.
+- **Across campaigns** — PIE, cross-experiment meta-learning. Output applies to new campaigns not in the training set.
+- **Across populations/sites** — Transportability, Hartman PATT, external validity analyses.
+- **Across time horizons** — Surrogate index, BSTS. Short-term signal → long-term prediction, or pre-period → post-period.
+- **Across channels** — MMM. Budget allocation across marketing channels.
+
+#### 5. Assumption Strength
+
+How strong are the required assumptions, and are they testable?
+
+- **Weak (just randomization)** — Pure RCT. Strongest identification, weakest assumptions. Only internal validity concern is compliance/attrition.
+- **Medium (stable conditional relationships)** — PIE, surrogates, calibrated MMM. Require the structure linking features to effects to be stable across the training-to-deployment boundary. Testable out-of-sample but not from first principles.
+- **Strong (unconfoundedness on observables)** — PSM, DML without RCT anchor. Require all confounders to be measured. Fundamentally untestable without experimental ground truth.
+- **Formal/testable** — Transportability, target trial emulation, data fusion. Assumptions are written in a formal language (DAGs, potential outcomes) and have explicit identification conditions. "Testable" in principle, often hard to verify in practice.
+
+#### 6. Bias vs. Variance Tradeoff
+
+What does the method primarily try to do to the estimator?
+
+- **Bias reduction** — Ghost ads (reduces exposure-selection bias over pixel-based methods), RCT-calibrated methods, transportability adjustments.
+- **Variance reduction** — Surrogate index (tighter CI from richer outcome signal), shrinkage estimators (borrowing strength across studies), CUPED.
+- **Both** — PIE (bias-free via RCT labels **and** variance-reduced via pooling across campaigns).
+- **Neither directly** — MMM addresses attribution (decomposition) rather than bias/variance per se. Synthetic control constructs a missing counterfactual.
+
+### Master Comparison Table
+
+Every method in this review, rated on the six dimensions.
+
+| Method | Target Estimand | Data Requirements | Identification Strategy | Extrapolation Scale | Assumption Strength | Bias / Variance |
+|--------|-----------------|-------------------|-------------------------|---------------------|---------------------|-----------------|
+| **Ghost Ads** | ATE / ATT per campaign | RCT with auction-level logging | Randomization | Within-experiment | Weak | Bias reduction (vs pixel-based) |
+| **PSM / DML / SPSM (pure observational)** | ATT | Observational-only | Unconfoundedness on observables | Across users within population | Strong (usually violated) | Neither works in ad settings |
+| **BSTS / CausalImpact** | ATT at one treated unit | Time-series (pre + post) | Structural time-series + no-interference control | Across time horizons | Medium (stable counterfactual model) | Both (model-based variance; bias if control contaminated) |
+| **Synthetic Control** | ATT at one treated unit | Panel data (pre-treatment) | Parallel trends / convex hull fit | Across time horizons | Medium (convex combination stability) | Bias reduction via donor weighting |
+| **Geo Experiments** | Geo-level ATE | Geo-level panel + randomization | Randomization at geo level | Within-experiment | Weak | Bias reduction (vs user-level obs) |
+| **Surrogate Index** | Long-horizon ATE | RCT with short- and long-term outcomes on subset | Surrogacy | Across time horizons | Medium–Strong (depends on surrogates) | Variance reduction |
+| **Auto-Surrogates (Netflix)** | Long-horizon ATE | Large corpus of RCTs + short-term metrics | Surrogacy (ML-learned) | Across time horizons | Medium | Variance reduction + empirical validation |
+| **Long-Term Data Combination (Ghassami)** | Long-term ATE | Short-term RCT + long-term observational | Identification via exclusion restriction | Across time horizons | Formal/testable (specific DAG) | Bias reduction |
+| **PIE** | Campaign-level ATT | Historical RCT corpus + campaign features | Prediction under invariance (RCT labels) | Across campaigns | Medium (corpus representativeness) | Both |
+| **Amazon MTA** | Campaign-level ATT (per-touch) | Platform logs + periodic RCTs | Experimental grounding + structural model | Across campaigns/channels | Medium | Bias reduction (vs rule-based attribution) |
+| **Causal ML / Uplift** | CATE | RCT-only | Randomization + ML heterogeneity | Within-experiment | Weak | Variance reduction for personalization |
+| **Cross-Experiment Meta-Learning** | CATE transferable across experiments | Multiple RCTs with shared covariates | Prediction under invariance | Across experiments | Medium | Variance reduction via pooling |
+| **Kallus Experimental Grounding** | ATE / CATE | RCT + larger observational dataset | Experimental grounding (residual learning) | Across users within population | Medium | Bias reduction (anchored) |
+| **Shrinkage Estimators (Rosenman)** | ATT | RCT + observational | Shrinkage / empirical Bayes | Across studies/sites | Medium | Variance reduction (trading bias) |
+| **Target Trial Emulation (Hernán & Robins)** | ATE of a hypothetical trial | Observational (occasionally + RCT) | Explicit protocol + unconfoundedness | Across users within population | Formal/testable | Bias reduction via protocol rigor |
+| **Bayesian MMM + Lift Tests** | Channel-level policy effect | Time-series + periodic RCT priors | Structural modeling + experimental calibration | Across channels / across time | Medium (functional form + calibration freshness) | Both (prior tightens variance, lift tests correct bias) |
+| **Transportability (Pearl & Bareinboim)** | Target-population ATE | Source RCT + target covariate distribution + DAG | Prediction under invariance + DAG | Across populations | Formal/testable (S-admissibility) | Bias reduction for target |
+| **External Validity (Allcott, Vivalt)** | Distribution of ATEs across sites | Multiple RCT sites | Empirical (meta) | Across populations | Medium (representativeness of site sample) | Variance + uncertainty quantification |
+| **Hartman PATT** | Population ATT | RCT + observational from target population | Ignorability of sampling | Across populations | Formal/testable | Bias reduction |
+| **Data Fusion (Bareinboim & Pearl PNAS)** | Varies (causal query) | Multiple heterogeneous datasets + DAG | DAG-based identification | Varies | Formal/testable | Bias reduction |
+| **Random-Effects Meta-Analysis** | Pooled ATE + between-study τ² | Corpus of RCTs | Exchangeability of study effects | Across studies | Medium | Variance reduction (pooling) |
+| **Prediction-Powered Generalization** | Target ATE or policy effect | RCT + target-population predictions | Experimental grounding of ML predictions | Across populations | Medium | Bias reduction + calibrated CIs |
+| **In-Context Learning for Causal Estimation** | ATE / CATE | Pre-trained PFN on synthetic DGPs + target data | Prior over DGPs (structural) | Varies | Medium–Strong (prior realism) | Variance reduction (amortized) |
+| **Externally Valid Policy Evaluation** | Policy value in target population | RCT + target covariate data | Transportability / reweighting | Across populations | Formal/testable | Bias reduction for policy |
+
+### Short Comparison Tables by Question
+
+These tables answer practical questions that cut across the master table.
+
+#### Which methods work if you have **no experimental data**?
+
+Very few. The honest answer is that without experimental data, almost nothing gives you unbiased causal estimates for ads. You have two options and both are narrow:
+
+| Situation | Method | Caveat |
+|-----------|--------|--------|
+| You have panel/time-series data and one clearly-treated unit | Synthetic Control, BSTS/CausalImpact | Requires pre-period stability; only works for a single intervention, not per-campaign measurement |
+| You have a DAG you trust and rich covariates | Target Trial Emulation, DAG-based identification | Assumptions typically fail for ad settings; use as directional only |
+| You believe unconfoundedness holds | PSM / DML | **Don't.** Gordon et al. (2019, 2023) showed this systematically fails for ads. |
+
+Bottom line: if your answer to "do you have experimental data?" is "no," your realistic path is to go get some, not to pick a cleverer observational method.
+
+#### Which methods work with **only a single recent RCT**?
+
+| Method | What You Get | Limitation |
+|--------|--------------|------------|
+| Causal ML / Uplift | CATE estimates within that experiment | Doesn't generalize beyond the experiment's population |
+| Transportability | Target-population ATE if DAG + S-admissibility hold | Requires a formal graph and target covariate data |
+| Target Trial Emulation | Emulated ATE for similar future periods | Still requires unconfoundedness outside the RCT |
+| Surrogate Index | Long-horizon ATE from short-horizon data | Surrogacy assumption must hold |
+| Kallus Experimental Grounding | Anchored observational CATE | Needs observational data too |
+
+A single RCT is enough to measure that specific intervention but is rarely enough to predict others.
+
+#### Which methods work with **many historical RCTs**?
+
+This is the sweet spot for several modern methods.
+
+| Method | What It Does With the Corpus |
+|--------|------------------------------|
+| PIE | Trains a model to predict campaign ATT from campaign features |
+| Random-Effects Meta-Analysis | Pools effects across studies, estimates between-study heterogeneity |
+| Cross-Experiment Meta-Learning | Learns a shared CATE mapping across experiments |
+| Shrinkage Estimators (Rosenman) | Shrinks per-study estimates toward the pooled mean |
+| In-Context Learning (PFNs) | Uses the corpus as context at inference time |
+| External Validity (Vivalt, Allcott) | Diagnoses when and where effects generalize |
+
+If you have 100+ RCTs, you almost certainly want to be using them for more than one-off reporting.
+
+#### Which methods produce **unbiased estimates** vs. which are **predictions**?
+
+This is the single most important distinction to keep straight.
+
+| Output Type | Methods |
+|-------------|---------|
+| **Unbiased causal estimate (for the measured intervention)** | Pure RCTs, Ghost Ads, Geo Experiments, any calibrated lift test |
+| **Bias-reduced estimate, still for a measured intervention** | Kallus Experimental Grounding, Rosenman Shrinkage, Data Fusion with valid DAG |
+| **Causal prediction (not unbiased for any single new intervention, but trained on unbiased labels)** | PIE, Cross-Experiment Meta-Learning, Prediction-Powered Generalization |
+| **Structural estimate (unbiased only under model correctness)** | MMM (calibrated or not), Synthetic Control, BSTS |
+| **Biased in ad settings** | PSM, DML, last-click attribution |
+
+PIE is deliberately listed as a **prediction**, not a causal estimate. The training labels are unbiased (they come from RCTs), but for any single new campaign, PIE's output is a forecast, not an identified effect.
+
+#### Which methods require a **causal graph** vs. which are **purely statistical**?
+
+| Requires a DAG | Purely statistical / empirical |
+|----------------|-------------------------------|
+| Transportability (Pearl & Bareinboim) | PIE |
+| Data Fusion (Bareinboim & Pearl PNAS) | Random-Effects Meta-Analysis |
+| Target Trial Emulation (implicit DAG) | Surrogate Index |
+| Ghassami Long-Term Data Combination | Causal ML / Uplift |
+| Externally Valid Policy Evaluation (sometimes) | Ghost Ads / Geo / RCTs |
+| Kallus / Rosenman (implicit) | BSTS / Synthetic Control |
+
+Methods that require an explicit causal graph are more formally rigorous but harder to deploy — they demand domain knowledge encoded as structure. Purely statistical methods trade formal guarantees for operational simplicity.
+
+#### Which methods have been **empirically validated on real data**?
+
+By "empirical validation" we mean the method's outputs have been compared to held-out RCT ground truth on non-trivial datasets.
+
+| Validation Strength | Methods |
+|---------------------|---------|
+| **Strong (validated against >100 RCTs)** | PIE (400+ Meta RCTs), Auto-Surrogates (Netflix, 200 RCTs), Gordon et al. observational benchmarks |
+| **Moderate (validated on a handful of RCTs or one large corpus)** | Surrogate Index (Athey et al. + Netflix), Cross-Experiment Meta-Learning, Amazon MTA (internal validation) |
+| **Simulation + single-dataset validation** | Kallus Experimental Grounding, Rosenman Shrinkage, Hartman PATT, Prediction-Powered Generalization, In-Context Learning |
+| **Primarily theoretical / case-study only** | Transportability, Data Fusion, Externally Valid Policy Evaluation, some MMM calibration frameworks |
+| **Negatively validated (shown to fail against RCTs)** | PSM, DML, last-click attribution (Gordon et al. 2019, 2023) |
+
+Methods in the top two rows have the strongest claim to operational reliability. Methods in the "theoretical only" row may still be right — but you'll be the one validating them in your context.
+
+---
+
 ## Practitioner's Decision Guide
 
 **How to Use This Section:** Start here if you need to choose a method for estimating intervention effects without running a new RCT. The academic sections (2–7) provide depth; this section provides actionable guidance.
@@ -2361,3 +2549,346 @@ This combines PIE (§4.1) with transportability (§6.1):
 43. **In-Context Learning for Causal Effect Estimation (2024).** [arXiv:2506.06039](https://arxiv.org/abs/2506.06039)
 
 44. **Externally Valid Policy Evaluation from Randomized Trials Using Additional Observational Data (2023).** [arXiv:2310.14763](https://arxiv.org/abs/2310.14763)
+
+---
+
+## Appendix D: Beginner's Guide for Science-Literate Readers New to Causal Measurement
+
+**Target audience:** Readers with strong background in statistics or machine learning, but new to causal inference for measurement problems. You understand regression, cross-validation, hypothesis testing, maybe even deep learning — but you haven't worked deeply on causal identification or ad measurement. This appendix assumes that background and tries to get you to "operational literacy" in the rest of this review.
+
+### D.1 Why Is This Problem Hard? First Principles
+
+At the heart of this entire field is a single, unavoidable problem: **you can never observe both the treated and untreated outcome for the same unit at the same time.**
+
+Write $Y_i(1)$ for the outcome of unit $i$ if treated, and $Y_i(0)$ if not. The causal effect for that unit is $\tau_i = Y_i(1) - Y_i(0)$. Exactly one of those two numbers is observable. The other is a counterfactual. This is the **fundamental problem of causal inference** (Holland 1986). Everything else in this review is, in one way or another, a strategy for filling in the missing half of the table.
+
+This is not a flaw of ML or statistics — it is a structural feature of the world. No amount of data, no deeper neural network, no bigger transformer resolves it. More data just sharpens your estimate of what's observable; it does nothing for what isn't.
+
+#### Why correlation-based ML isn't enough
+
+Machine learning as typically practiced learns $\mathbb{E}[Y \mid X]$ — the conditional expectation of $Y$ given features $X$. If you trained an ad-response model on historical logs, it would learn "users who saw this ad have higher conversion." But the users who saw the ad are **selected**: ad platforms deliberately show ads to users predicted to convert. So the observed correlation conflates:
+
+1. The ad causing conversion (the thing you want to know).
+2. The platform selecting high-probability-of-converting users (which exists regardless of the ad).
+
+**Simpson's paradox** is the textbook version: an aggregate correlation can flip sign when you stratify by a confounder. In ad measurement, the confounder is intent. Users with purchase intent are more likely to see ads **and** more likely to buy. An ML model that ignores this will see a massive "ad effect" that is almost entirely the intent signal. This is why last-click attribution overstates ad effectiveness so severely — the last click is correlated with purchase precisely because both are caused by intent.
+
+#### The Lewis–Rao result and why ad effects are needles in haystacks
+
+Lewis & Rao (2015) quantified exactly how hard this is. Across a set of large online ad experiments, they estimated the partial $R^2$ of advertising on sales at roughly **0.000005** — five parts per million. Put concretely: the variance in consumer spending is enormous, and the variance caused by a typical ad campaign is a tiny sliver of it.
+
+What this means in practice:
+
+- To detect a 1% lift with adequate power, you often need millions of users in the experiment.
+- Any analytic method that loses even a tiny amount of precision relative to an RCT effectively cannot detect the effect at all.
+- Running an RCT for every decision is economically infeasible — most campaigns cost less than what a properly-powered lift test would cost.
+
+This is why the field has developed the menagerie of techniques in this review. None of them beat the RCT on internal validity; all of them are trying to either (a) make RCTs cheaper, (b) extend an RCT's conclusions beyond where it was run, or (c) predict what an RCT would have said without actually running one.
+
+#### Walked example: why last-click attribution overstates ad effects
+
+Imagine 1,000,000 users. Of them, 10,000 buy a given product this week. Of the 10,000 buyers, 3,000 clicked an ad at some point in the previous 7 days.
+
+Last-click attribution credits those 3,000 conversions to the ad. Division gives an "ROAS" that looks great. But: of the 990,000 non-buyers, only 50,000 clicked an ad. So clickers are much more likely to buy — but that's because **clickers are a self-selected group of already-interested users.**
+
+The right counterfactual question is: "Of the 3,000 clickers who bought, how many would have bought anyway?" A ghost-ad RCT might reveal that 2,000 of them would have. The true incremental conversions from the ad are 1,000, not 3,000. Attribution overstates by 3x. (Empirically, overstatements of 20–300% are routine; Gordon et al. 2019 report median overstatement around 30% across 15 campaigns.)
+
+This is not a bug in the attribution software. It is mathematically guaranteed by the selection structure. No amount of ML cleverness applied to click logs can fix it — because the signal you need (the counterfactual) is simply not in the logs.
+
+### D.2 The Three Pillars You Need to Know
+
+Three concepts unlock the rest of the literature.
+
+#### Pillar 1: The Potential Outcomes Framework (Neyman / Rubin)
+
+For each unit $i$ and each possible treatment $t \in \{0, 1\}$, there exists a potential outcome $Y_i(t)$. You observe $Y_i = Y_i(T_i)$ where $T_i$ is the treatment the unit actually got. The **individual treatment effect** is $\tau_i = Y_i(1) - Y_i(0)$, and the **average treatment effect** is $\text{ATE} = \mathbb{E}[\tau_i]$.
+
+This framework lets you write down precisely what you're trying to estimate. A lot of confusion in measurement comes from people estimating one thing and interpreting it as another. "Did the ad cause sales?" is an ATE question. "Which users are most persuadable?" is a CATE (Conditional ATE) question. "What would the campaign have produced if rolled out to 10x more users?" is a policy question. Different questions need different methods.
+
+#### Pillar 2: Randomization as Identification
+
+**Randomization** — assigning treatment by a known, independent random mechanism — guarantees that treatment assignment is independent of potential outcomes: $T_i \perp (Y_i(0), Y_i(1))$. This in turn means that the observed difference-in-means between treated and control is an unbiased estimate of the ATE:
+
+$$\mathbb{E}[Y \mid T=1] - \mathbb{E}[Y \mid T=0] = \text{ATE}$$
+
+What randomization gives you:
+
+- Unbiased ATE for **the population and time window of the experiment**.
+- Valid confidence intervals (assuming proper design).
+- No need to measure or model confounders.
+
+What randomization does **not** give you:
+
+- ATE for **other** populations (external validity is a separate question).
+- ATE for **other** time periods (effects may change).
+- ATE for **other** interventions similar to yours (need a new experiment or a prediction model).
+- Automatic CATE or subgroup effects at useful precision (need more power or more sophisticated estimators).
+
+Randomization solves the hardest part — identification — at the cost of making you actually run the experiment.
+
+#### Pillar 3: Confounding and How to See It
+
+A **confounder** is a variable that affects both treatment and outcome. When one exists and you don't adjust for it, your estimate is biased. In ad measurement, the universal confounder is **intent**: users with high purchase intent are more likely to be shown an ad (platforms target them) and more likely to convert (because they wanted to buy).
+
+The formal language for reasoning about this is **directed acyclic graphs** (DAGs). In a DAG:
+
+- Nodes are variables.
+- An edge $A \to B$ means $A$ causally affects $B$.
+- A **backdoor path** from treatment $T$ to outcome $Y$ is a path that starts with an arrow **into** $T$. Backdoor paths create confounding.
+
+A minimum literacy-level DAG for ad measurement:
+
+```
+Intent  ─┬──►  Ad exposure (T)
+         └──►  Purchase (Y)
+                ▲
+Ad (T) ─────────┘
+```
+
+Here, Intent is a backdoor. If you don't observe or adjust for it, the observed association between T and Y reflects both the ad effect (T → Y) and the confounding (Intent → T and Intent → Y). RCTs break the Intent → T edge by assigning T randomly, eliminating the backdoor.
+
+You don't need to become a DAG expert. You just need to know that (a) confounders exist, (b) they are the reason observational methods fail in ad settings, and (c) the formal methods in §6 use DAGs to reason about when extrapolation across populations is valid.
+
+### D.3 The Method Families in One Page
+
+Plain-English, one-paragraph intuition for each family:
+
+**Pure experimentation (RCTs, ghost ads).** The gold standard. Randomly assign users to treatment and control, measure the outcome difference. Ghost ads are a variant where you run the ad targeting machinery but suppress delivery for control users, so both groups are matched on "would-have-seen-ad" eligibility. Expensive and slow at scale but unambiguous.
+
+**Observational methods (PSM, DML, attribution).** Try to mimic experiments using statistical adjustment for observed covariates. They look scientific and are easy to run on logs you already have. They systematically fail for ad measurement because the selection bias (intent) is larger than any effect you could hope to detect and cannot be fully measured. Use for directional signal only, never for budget decisions.
+
+**Time-series counterfactuals (BSTS, synthetic control).** Use a pre-treatment time series to build a model of what would have happened absent treatment, then compare to what actually happened. Works well for one-off interventions with clear before/after structure (policy launches, geo rollouts, major product changes). Does not scale to "per-campaign" measurement.
+
+**Surrogates.** Long-term outcomes (a purchase 90 days later) are expensive to wait for. Surrogate methods use a richer short-term signal (engagement metrics in the first few days) to predict the long-term outcome earlier and with tighter confidence intervals. Validity rests on the surrogates capturing the full effect path from treatment to long-term outcome.
+
+**Cross-experiment prediction (PIE).** Treat your corpus of past RCTs as training data. Featurize each campaign (creative, audience, channel, seasonality, etc.), use the RCT-estimated ATT as the label, and train a regression. For a new campaign, predict its ATT from its features. This shifts the problem from "causal identification" (you already solved it, via RCTs, for the training set) to "supervised learning out-of-sample." You need a lot of RCTs for this to work — typically 100+ — and you need the training corpus to be representative of the decisions you want to make.
+
+**Marketing mix models + calibration.** A time-series regression of sales on marketing spend by channel, typically with adstock/saturation nonlinearities and Bayesian priors. Alone, an MMM is observational and vulnerable to confounding. Calibrated — meaning the priors on channel effectiveness are anchored to periodic RCT-based lift tests — it can produce credible channel-level ROAS estimates for budget allocation. Not appropriate for per-campaign decisions.
+
+**Transportability.** A formal theory (Pearl & Bareinboim) about when an RCT result in population A can be applied to population B. It requires a DAG and an explicit identification condition called S-admissibility. When applicable, it gives you a rigorous "transport formula" that reweights the RCT to match the target population. When not applicable, it tells you so — which is itself valuable.
+
+**Meta-analysis.** Average results across many similar experiments, with proper handling of between-study heterogeneity. Classical in medicine; increasingly used in ad and policy measurement. The conceptual ancestor of PIE but less ambitious: meta-analysis summarizes, PIE predicts out-of-corpus.
+
+### D.4 A Decision Tree You Can Actually Use
+
+```
+                    Can you run an RCT for THIS decision?
+                              │
+               ┌──────────────┴──────────────┐
+              YES                             NO
+               │                               │
+       Just run the RCT.               Do you have a CORPUS
+       Use ghost ads if at scale.      of past RCTs (100+)?
+       Use surrogate index for                 │
+       faster reads.                ┌──────────┴──────────┐
+                                   YES                    NO
+                                    │                      │
+                         What's the target?        Do you have one
+                                    │              recent RCT?
+                    ┌───────┬───────┼──────────┐           │
+                    ▼       ▼       ▼          ▼    ┌──────┴──────┐
+              One new   Many new  Channel    Long  YES            NO
+              campaign  campaigns budget   horizon   │             │
+                  │        │        │         │     │    Time-series
+                PIE      PIE     MMM +      Surrogate │   data + one
+                        (bulk)  lift tests  Index     │   treated unit?
+                                                      │         │
+                                           Transport- │    ┌────┴────┐
+                                           ability /  │   YES        NO
+                                           Target     │    │         │
+                                           Trial      │ BSTS /   Go get
+                                           Emulation  │ Synthetic RCT data.
+                                                      │ Control   Nothing
+                                                      │           credible
+                                                      │           works
+                                                      │           without it.
+                                                      │
+                                                      └─► Causal ML/
+                                                          uplift for
+                                                          personalization
+                                                          within that
+                                                          RCT only
+```
+
+The dominant branch in practice: **most orgs should be running more RCTs than they think, and the payoff from collecting them as a corpus (for PIE-style methods later) is large.**
+
+### D.5 Common Beginner Mistakes
+
+1. **"We have lots of data, so we can use observational methods."** No. Gordon et al. (2019, 2023) benchmarked PSM, DML, and stratified variants against large Facebook RCTs and found median absolute errors of 40–100%. More data with the same selection bias gives you tighter confidence intervals around the wrong number. Volume does not fix identification.
+
+2. **"Last-click attribution is close enough."** No. It systematically overstates by ~30% on average, with individual campaigns overstating by 3x or more. It is biased in a specific direction — clicks are a convenience sample of the persuaded — so it is not even unbiased on average across campaigns.
+
+3. **"Our MMM doesn't need experiments."** Without lift-test calibration, an MMM is a time-series regression with Bayesian priors. It's subject to the usual confounding in marketing data (seasonality, endogenous spend, competitive dynamics) and its priors are often folklore. Calibration against experiments is what makes an MMM a measurement tool rather than an organized opinion.
+
+4. **"CUPED / variance reduction solves our measurement problem."** No. CUPED (Deng et al. 2013) is a variance-reduction technique for *within an RCT*. It makes your experiment more powerful. It does not turn observational data into a causal estimate. It is complementary to, not a substitute for, the methods in this review.
+
+5. **"We can just A/B test everything."** The Lewis–Rao partial-$R^2$ result shows that ad effects are small relative to outcome variance. Powering an RCT for a typical campaign costs real money. Across thousands of campaigns, this is economically infeasible. You need a prediction strategy for the long tail (PIE, MMM) and experiments for the head.
+
+6. **"The surrogate index will work for any short-term metric."** No. The surrogacy assumption — that the treatment affects long-term outcome only through the surrogates — is strong and specific. Pick the wrong surrogate set and your long-term estimates are biased. Athey et al. (2019) and the Netflix blog both stress the importance of carefully chosen, validated surrogates.
+
+7. **"Causal forests / uplift modeling = PIE."** No. Uplift models estimate CATE **within** one experiment — they tell you which users benefit most from the treatment in that experiment. PIE predicts **campaign-level** ATT for **new** campaigns — it tells you which campaign to run at all. Different estimand, different data requirements, different use case.
+
+8. **"Transportability is just a fancy word for meta-analysis."** No. Meta-analysis pools study-level effects assuming exchangeability. Transportability is a formal theory with an explicit DAG, a specific identification condition (S-admissibility), and an explicit transport formula that reweights the source study for the target population. When the graph is correct, transportability gives you an identified target estimand; meta-analysis gives you an average.
+
+### D.6 Recommended Reading Path
+
+A sensible order if you want to go deeper:
+
+1. **Imbens & Rubin (2015).** *Causal Inference for Statistics, Social, and Biomedical Sciences.* Cambridge University Press. The standard textbook. Read Chapters 1–5 for potential outcomes and classical randomization-based inference.
+2. **Lewis & Rao (2015).** "The Unfavorable Economics of Measuring the Returns to Advertising." *QJE.* Short and essential — explains why ad measurement is different from other causal measurement.
+3. **Gordon, Zettelmeyer, Moakler, Reiley (2019).** "A Comparison of Approaches to Advertising Measurement." *Marketing Science.* The empirical case against observational methods in ads.
+4. **Gordon, Moakler, Zettelmeyer (2026).** "Predicted Incrementality by Experimentation (PIE)." The modern alternative — cross-experiment prediction as a first-class tool.
+5. **Athey & Wager (2018).** "Estimation and Inference of Heterogeneous Treatment Effects using Random Forests." *JASA.* The methodological foundation for modern CATE estimation.
+6. **Pearl & Bareinboim (2016).** "Causal Inference and the Data-Fusion Problem." *PNAS.* Formal framework for combining data across sources and populations.
+
+After these six, the rest of the review will read much more easily — you'll be able to place each method on the map you've built.
+
+---
+
+## Appendix E: Executive Summary for Senior Decision-Makers
+
+**Target audience:** VPs, directors, and senior managers making budget and strategy decisions that depend on measurement outputs. You are not a statistician; you do not need to be. You do need to know which questions to ask your team, what answers indicate trouble, and roughly what each approach buys you.
+
+No math here. Concrete examples and dollar figures throughout.
+
+### E.1 The Bottom Line in 5 Sentences
+
+Measuring whether marketing actually works — causally, not just in correlation — is genuinely hard. The gold standard is the randomized experiment (A/B test, or "lift test"), but running one for every decision is too expensive. The field has developed methods to extend, replace, or shortcut experiments, ranging from simple approaches that look scientific but don't work (observational analysis of historical data) to sophisticated ones that do (training models on many past experiments to predict new ones, known as PIE). Most credible methods require some experimental data to be trustworthy. The right approach depends on how many decisions you make, what experimental data you have access to, and what level of accuracy you need.
+
+### E.2 The Five Questions You Should Be Asking
+
+Five questions to ask your measurement team. These are designed to surface trouble quickly.
+
+#### 1. "Is our measurement calibrated against experiments?"
+
+**Why it matters:** Without experimental calibration, most measurement methods — attribution models, marketing mix models, propensity models — systematically mis-estimate effects. Calibration means anchoring the model's outputs to known-unbiased estimates from RCTs.
+
+- ✅ **Good answer:** "Yes, we run lift tests quarterly across our biggest channels, and we anchor our MMM priors to those results. When a new lift test comes in, we retrain."
+- ⚠️ **Concerning answer:** "Our attribution model uses machine learning on click data and is re-trained weekly."
+- ❌ **Bad answer:** "Our vendor handles it."
+
+#### 2. "When we say a campaign 'drove $X,' what does that actually mean?"
+
+**Why it matters:** Last-click attribution, MMM output, and RCT-based incrementality are different numbers measuring different things. Last-click credits the last touchpoint before a conversion regardless of causality; MMM decomposes observed sales into channel contributions based on a time-series model; RCT-based incrementality measures the conversions that would not have happened without the ad. These routinely disagree by 2–3x.
+
+- ✅ **Good answer:** Team can articulate which number is being reported, how it was produced, and its known limitations.
+- ❌ **Bad answer:** "It's in the dashboard." / "The platform reports it."
+
+#### 3. "What's our incremental ROAS across channels, and how much do we trust it?"
+
+**Why it matters:** Budget reallocation should be driven by incremental (causal) ROAS, not correlational ROAS. Correlational ROAS overstates — sometimes dramatically — for channels that are already targeting high-intent users.
+
+- ✅ **Good answer:** "Here are the channel-level numbers with their uncertainty ranges. Channels A and B were validated against lift tests in the last six months; channel C's estimate relies more heavily on our model because we haven't run a recent test."
+- ❌ **Bad answer:** Precise point estimates with no uncertainty discussion and no mention of the last experimental validation.
+
+#### 4. "If we stopped spending on channel X tomorrow, what would happen?"
+
+**Why it matters:** This is the counterfactual question — the question budget decisions actually depend on. Only methods designed for causal inference can answer it honestly. Attribution models cannot, because they describe past patterns, not what would happen under a change.
+
+- ✅ **Good answer:** "Based on our most recent lift test / PIE-style model / calibrated MMM, we'd expect a Y% revenue impact, with this range of uncertainty."
+- ❌ **Bad answer:** "Well, historically that channel has driven $X, so we'd lose $X." (This is correlational, not causal.)
+
+#### 5. "How often do our experiments disagree with our models?"
+
+**Why it matters:** Over time, models drift and underlying dynamics change. The only way you know your measurement system is still working is to periodically test it against ground truth — an experiment. If your team doesn't measure this, they don't know whether their numbers are still accurate.
+
+- ✅ **Good answer:** "We track the gap between MMM-predicted lift and measured lift on each experiment. When it grows beyond 30%, we retrain."
+- ❌ **Bad answer:** "We don't systematically compare them."
+
+### E.3 What Each Measurement Approach Actually Buys You
+
+Simple comparison in business language. Dollar ranges are order-of-magnitude indicators for planning purposes, not quotes.
+
+| Approach | Annual Cost | Setup Time | What You Get | When It Fails |
+|----------|-------------|------------|--------------|---------------|
+| **Last-click attribution** | ~$0 (free with ad platform) | Instant | Directional signal for within-channel ranking; **systematically overstates by ~30%+** | Always. It is biased by construction. Useful only as directional. |
+| **MMM without calibration** | $100K–$500K | 3–6 months | Channel-level decomposition (biased) | When channels are correlated (they always are) or when spend patterns are autocorrelated with sales trends |
+| **MMM with quarterly lift tests** | $300K–$1M + experiment costs | 6–9 months | Calibrated channel-level ROAS for budget decisions | When lift tests are stale (>6 months old) or cover too few channels |
+| **Per-campaign RCTs** | $10K–$100K per test | 2–8 weeks per test | Gold-standard measurement for the specific campaigns tested | Doesn't cover untested campaigns (the vast majority) |
+| **Ghost ads** | Marginal over RCTs | Platform-dependent; weeks if platform supports it | Much cheaper RCTs at scale | Only if your ad platform has implemented it |
+| **PIE (cross-experiment prediction)** | $500K–$2M build, $200K/yr ops | 6–12 months from first corpus to production | Campaign-level measurement at scale, without an RCT per campaign | When your RCT corpus is stale, unrepresentative, or too small |
+| **Surrogate index** | $50K–$200K | 2–4 months | Faster experiment reads (days instead of quarters) | When short-term metrics don't fully capture long-term effects |
+
+**How to read this table:** the row that matches your budget and scale is typically the right place to start, not the most sophisticated row. Adding a PIE system on top of an unmeasured ad program produces expensive-but-wrong numbers.
+
+### E.4 Common Executive Traps
+
+Six decision traps that recur across organizations. Each includes why it happens and what to do instead.
+
+#### Trap 1: "Our models give more precise numbers, so they're better."
+
+- **Why it's a trap:** More decimal places does not mean more accuracy. MMMs and attribution models often give confident but biased numbers; RCTs give less precise but unbiased numbers.
+- **What to do instead:** Prefer unbiased estimates with honest uncertainty over biased estimates with false precision. A ±20% range that is actually right beats a 2-decimal point estimate that is 50% off.
+
+#### Trap 2: "A/B testing is old-fashioned — we should use ML."
+
+- **Why it's a trap:** Machine learning without experimental grounding reproduces correlation, not causation. The best modern causal methods (PIE, causal ML, prediction-powered generalization) all **require** experimental data — they use ML to extend experiments, not replace them.
+- **What to do instead:** Invest in experimental infrastructure even if you also build ML on top. ML plus experiments is a force multiplier; ML without experiments is attribution dressed up.
+
+#### Trap 3: "We'll just do what the algorithm recommends."
+
+- **Why it's a trap:** If the algorithm was trained on biased data (e.g., last-click labels, uncalibrated attribution), its recommendations will preserve that bias — now at scale, with full automation, and compounding over time.
+- **What to do instead:** Audit what data your recommendation or optimization engine was trained on. If the training target was attributed conversions, its optimization is biased toward whichever touchpoints get attributed, not whichever drive incremental conversions.
+
+#### Trap 4: "Every campaign needs an experiment."
+
+- **Why it's a trap:** It's infeasible at scale. You end up experimenting on nothing because the cost per experiment vs. the cost of the campaign doesn't pencil out (the Lewis–Rao economics).
+- **What to do instead:** Reserve experiments for the most consequential decisions and for building a training corpus. Use PIE-style methods or calibrated MMM for the long tail. This is "experiments as infrastructure, not as reporting."
+
+#### Trap 5: "If we just had more data, the bias would go away."
+
+- **Why it's a trap:** Selection bias does not shrink with sample size. A billion observations with the same selection bias gives you a tighter confidence interval around the wrong number. The only cure for selection bias is randomization or its equivalents.
+- **What to do instead:** Invest in experimental design, not just data collection. Log enrichment and event volume are valuable, but not substitutes for causal identification.
+
+#### Trap 6: "Our attribution is proprietary — trust the platform."
+
+- **Why it's a trap:** Ad platforms have incentives to overstate platform effects in their attribution. Cross-platform comparisons using platform-reported numbers are not apples-to-apples; each platform is effectively grading its own homework.
+- **What to do instead:** Periodically run independent lift tests (ghost ads where available, geo experiments otherwise) to calibrate platform claims. A modest investment here can produce large reallocation savings.
+
+### E.5 Investment Strategy by Organization Size
+
+Starting points by scale. These are heuristics, not mandates — adapt to your context.
+
+#### Small advertiser (<$1M/year ad spend)
+
+- Use platform attribution as the starting point, **but discount reported effects by 20–40%** as a default correction for platform bias.
+- Run 2–4 ghost-ad lift tests per year on your biggest campaigns, if the platform supports them.
+- **Do not invest in MMM or PIE.** Fixed costs don't amortize at your scale.
+- Budget: $5K–$30K/year on measurement beyond platform-reported numbers.
+
+#### Mid-size advertiser ($1M–$10M/year)
+
+- Build a simple MMM using open-source tools (Robyn from Meta, Meridian from Google).
+- Calibrate with 4–6 lift tests per year covering the main channels.
+- Consider surrogate index for faster reads on experiments that would otherwise take 90+ days.
+- Budget: $100K–$300K/year on measurement infrastructure.
+
+#### Large advertiser ($10M–$100M/year)
+
+- Build a full Bayesian MMM with quarterly calibration.
+- Run 10–20 RCTs per year across channels to feed calibration and build a training corpus.
+- Consider PIE-style cross-experiment prediction if you have 100+ historical RCTs (or can get there in 18 months).
+- Budget: $500K–$2M/year on measurement infrastructure and experiment execution.
+
+#### Ad platform or enterprise advertiser (>$100M/year)
+
+- Full PIE implementation (target: 400+ RCT corpus, following Gordon et al.).
+- Always-on lift testing infrastructure (ghost ads, geo experiments).
+- MMM + PIE + RCT hybrid measurement system with clear handoffs between components.
+- Team of 5–10 dedicated measurement scientists.
+- Budget: $5M+/year on measurement.
+
+### E.6 Red Flags in Measurement Presentations
+
+Things to watch for when your team or a vendor presents measurement results. Each is a symptom of a common failure mode.
+
+- **"Our model fits the data with R² = 0.95."** In-sample fit does not imply causal accuracy. High R² on historical data often reflects overfitting to observed patterns, not correct identification of causal effects.
+- **"We used a sophisticated ML model."** Sophistication is not a substitute for causal identification. A deep neural network trained on biased labels produces biased predictions — and typically with more confidence than a simple model would.
+- **"Our attribution shows campaign X drove $Y."** Ask: what's the denominator? Is that incremental revenue or total attributed revenue? These differ by 1.3–3x on typical campaigns.
+- **"We tested N variations and picked the best."** The winner's curse: if you test many variations, the one that looks best in the test will almost always look worse in production. Reported effects should be corrected for selection.
+- **"We ran this analysis on last year's data."** Stale data may not reflect current dynamics, especially if inventory, competition, or consumer behavior has shifted.
+- **"We can't run a proper RCT here."** Challenge it. Ghost ads, geo experiments, staggered rollouts, and time-randomized holdouts all apply in settings where "traditional" A/B testing seems impossible. The burden of proof should be on the team to show why experimentation is infeasible, not on the executive to accept a model-only answer.
+- **"The numbers line up with our intuition."** Confirmation bias. Good measurement should sometimes surprise you. If your team's numbers always confirm priors, something is wrong with either the measurement or the priors.
+- **No uncertainty quantification.** Every causal estimate has uncertainty. Reporting point estimates without confidence intervals is not precision — it's dishonesty about precision. Ask for the ranges.
+
+---
