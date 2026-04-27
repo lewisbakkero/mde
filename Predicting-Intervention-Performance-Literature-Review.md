@@ -6,7 +6,7 @@ Randomised controlled trials (RCTs) are the gold standard for causal inference, 
 
 This review synthesises research on methods that estimate the causal effect of an intervention **without requiring a new RCT for each decision**. The approaches range from observational methods that attempt to recover causal effects from non-experimental data (and largely fail), to surrogate-based methods that accelerate within-experiment learning, to cross-experiment prediction models that learn from a corpus of completed RCTs to predict effects for new interventions.
 
-**The central paper is PIE** (Gordon, Moakler, Zettelmeyer 2026) — Predicted Incrementality by Experimentation — which reframes ad measurement as a campaign-level prediction problem trained on RCT outcomes. PIE achieves out-of-sample R² = 0.88 for incremental conversions per dollar, compared to R² = 0.19 for last-click attribution.
+**No single method dominates.** Each category answers a different question, requires different data, and carries different assumptions. Choosing well depends on what you're trying to estimate, what data you have, and how strong a causal claim you need. Section 1.3 and the Common Comparison Framework (below) lay out this decision space. As one concrete data point, PIE (Gordon, Moakler, Zettelmeyer 2026) — a cross-experiment prediction approach — achieves out-of-sample R² = 0.88 for incremental conversions per dollar on 2,226 Meta ad experiments, compared to R² = 0.19 for last-click attribution; see §4.1 for full treatment alongside neighbouring methods.
 
 ---
 
@@ -963,13 +963,13 @@ Recent work extends the surrogate-index framework to settings with **unobserved 
 
 ## 4. Cross-Experiment Prediction (PIE and Related)
 
-This is the central section of the review. Methods here learn from a **corpus of completed experiments** to predict causal effects for new interventions — without running a new RCT for each decision.
+Methods here learn from a **corpus of completed experiments** to predict causal effects for new interventions — without running a new RCT for each decision. This is one of several categories covered by the review; it is particularly relevant when an organisation has accumulated a substantial experiment corpus and needs campaign-level measurement at scale.
 
 ### 4.1 Predicted Incrementality by Experimentation (PIE)
 
 **Source:** Gordon, Moakler, Zettelmeyer (2026). "Predicted Incrementality by Experimentation (PIE)." [arXiv:2304.06828v2](https://arxiv.org/abs/2304.06828). Forthcoming.
 
-**This is the central paper of this review.**
+PIE is one of the most empirically validated methods in the cross-experiment prediction category, with results from 2,226 Meta ad experiments. It is covered in extra depth here because of that validation and its production adoption (Amazon MTA, Meta Incremental Attribution); §4.2–§4.7 cover adjacent methods that address related problems with different tradeoffs.
 
 #### Problem
 
@@ -2120,7 +2120,7 @@ These three methods share a theme: **pre-trained or auxiliary ML models + experi
 These methods, taken together, represent the current frontier of data fusion for causal inference. They complement PIE (§4.1) by operating at different units of analysis (user-level vs. campaign-level) and by formalising the assumptions needed to extrapolate beyond the experimental sample.
 
 **Practical implication:** For advertising applications specifically:
-- **PIE (§4.1)** remains the central method for campaign-level measurement at scale
+- **PIE (§4.1)** is the most validated method for campaign-level measurement at scale when a sufficient RCT corpus exists; alternatives in §4.5–§4.7 apply when the corpus is smaller or the problem structure differs
 - **§8.1 methods** can improve the generalisation of each training RCT to its campaign's target audience
 - **§8.2 methods** are early-stage and worth monitoring but not yet production-ready for ad measurement
 - **§8.3 methods** are directly applicable to evaluating targeting policies where RCT samples don't match the target audience
