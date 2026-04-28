@@ -1288,6 +1288,8 @@ Cross-experiment meta-learning pools data from multiple RCTs to build a shared m
 - Computationally intensive for large user bases
 - Less mature than PIE; limited production deployments
 
+**Refinement (§4.8):** The "shared moderators" assumption is this method's dominant failure mode — when pooled experiments are too dissimilar, pooling adds noise rather than signal. Li et al. (2025) — see §4.8 — provide a local empirical Bayes framework that restricts pooling to a context-aware neighbourhood of similar experiments, directly targeting this failure mode. Prefer §4.8's local pooling rule over naive global pooling whenever the experiment corpus is heterogeneous or drifting.
+
 ---
 
 ### 4.5 Removing Hidden Confounding by Experimental Grounding
@@ -1411,6 +1413,77 @@ Rosenman et al. propose **James-Stein-style shrinkage estimators** that combine 
 3. **Bias estimation via experimental–observational gap:** The gap itself is noisy, which propagates into suboptimal shrinkage weights when experimental sample is small
 4. **Assumes common treatment contrast:** Works best when observational and experimental data reflect the same treatment comparison, which is often not the case with attribution models
 
+#### 4.6.1 Cross-Validated ERM for Combining Experimental and Observational Data
+
+**Source:** Yang et al. (2025). "Cross-Validated Causal Inference: A Modern Method to Combine Experimental and Observational Data." [arXiv:2511.00727](https://arxiv.org/abs/2511.00727).
+
+##### Problem
+
+Rosenman-style shrinkage (§4.6) and Kallus-style grounding (§4.5) both address the same underlying problem — how to combine a clean but noisy RCT with abundant but biased observational data — but they do so through ad-hoc combinations: shrinkage weights chosen to minimise a fixed MSE criterion, or a bias function estimated on the overlap. Neither gives a unified, principled way to **tune** the combination, nor does either provide non-asymptotic error bounds you can plug into a decision.
+
+The question Yang et al. attack: can we cast "combining experimental and observational data" as a standard empirical risk minimisation (ERM) problem, pick the combination by cross-validation, and get finite-sample guarantees?
+
+##### Method
+
+The method formulates a **full causal model** as the minimiser of a weighted sum of two empirical losses:
+
+$\hat{f} = \arg\min_f \, \lambda \cdot L_{\text{exp}}(f) + (1 - \lambda) \cdot L_{\text{obs}}(f)$
+
+where $L_{\text{exp}}$ is a loss on the experimental sample that enforces validity of the causal parameter (e.g., an unbiasedness or partial-identification constraint) and $L_{\text{obs}}$ is a standard predictive loss on the observational sample that pulls $f$ toward a good fit. The weight $\lambda \in [0,1]$ trades off bias (toward $L_{\text{exp}}$) against variance (toward $L_{\text{obs}}$):
+
+1. **Specify both losses:** $L_{\text{exp}}$ is the estimand-preserving loss on the RCT; $L_{\text{obs}}$ is a predictive loss on the observational data. The key insight is that both can be written as empirical risks over the same model class.
+2. **Fold the experimental data:** Split the RCT into $K$ folds.
+3. **For each candidate $\lambda$:** Fit $\hat{f}_\lambda$ on all data with weight $\lambda$, then evaluate the *causal parameter error* on held-out experimental folds. This is the cross-validation signal — fit is validated on the thing that matters (the causal parameter), not on a proxy predictive loss.
+4. **Pick $\lambda^*$:** Choose the weight that minimises the cross-validated causal-parameter error.
+5. **Report the model:** $\hat{f}_{\lambda^*}$, with non-asymptotic error bounds derived in the paper that characterise its sample complexity as a function of the two dataset sizes and the bias of the observational source.
+
+**Key insight:** The cross-validation signal is the **causal parameter error on held-out experimental folds**, not an observational predictive loss. This is what makes the procedure principled — you are tuning toward the thing you care about (unbiased causal inference), and the observational data is allowed in only to the extent it helps on that criterion.
+
+##### Assumptions
+
+| Assumption | Formal Statement | What Happens If Violated | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Valid experimental estimand** | The RCT identifies the causal parameter of interest | Entire framework rests on wrong target | Standard RCT checks |
+| **Model class contains a good approximation** | $\inf_f L_{\text{exp}}(f) + L_{\text{obs}}(f)$ is small | Bias from approximation error; bounds degrade | Expand model class; cross-validation diagnostics |
+| **Bounded observational bias** | Observational loss can be uniformly bounded on the model class | Non-asymptotic bounds break | Bound observational error on overlap region |
+| **Sufficient experimental folds** | $K$-fold CV has enough data per fold to estimate causal parameter error | Noisy $\lambda$ selection | Use $K = 5$–$10$; simulate |
+| **Same estimand in both data sources** | $L_{\text{exp}}$ and $L_{\text{obs}}$ target the same $\tau$ (after appropriate corrections) | Combining misleading quantities | Careful estimand specification |
+
+*When it works:* Medium-sized RCT (hundreds to thousands of units) with a much larger observational dataset that is biased but contains useful signal. The ERM structure is well suited to modern ML: losses can be differentiable, regularisation is standard, and cross-validation is routine.
+
+*When it fails:* When the observational bias cannot be meaningfully bounded on the model class (e.g., severe hidden confounding that the observational loss cannot detect), or when the RCT is too small for cross-validated $\lambda$ selection to be stable. Also fails when the causal parameter is not expressible as a loss minimiser — some structural quantities (e.g., ATT under continuous treatments) may need additional machinery.
+
+##### Key Findings
+
+- **Non-asymptotic error bounds** characterise the sample complexity as a function of the RCT size, observational size, and observational bias. This is a step beyond Rosenman (§4.6), which is asymptotic, and Kallus (§4.5), which provides consistency but not rate-explicit bounds.
+- **Cross-validation on the causal parameter** is what distinguishes the method from generic multi-source ERM: standard predictive CV would pick a $\lambda$ that overweights the observational loss (because it has more data and lower noise) even when the bias is large. The causal-parameter criterion correctly discounts biased observational signal.
+- **Unifies and generalises** Rosenman shrinkage (§4.6) and Kallus grounding (§4.5) under one ERM framework. Both can be recovered as special cases: shrinkage with specific loss choices; grounding with specific model-class structure.
+- Empirical validation on benchmark causal inference datasets shows cross-validated combination matches or beats each component method alone, particularly when observational bias is moderate.
+
+##### Limitations
+
+1. **Requires differentiable losses:** The ERM framework needs $L_{\text{exp}}$ and $L_{\text{obs}}$ to be tractable. Some causal estimands (partial identification, bounds) may not fit directly.
+2. **Cross-validation cost:** Fitting $\hat{f}_\lambda$ for many $\lambda$ values with $K$-fold CV is expensive. Warm-starting across $\lambda$ and using coarse-to-fine grids helps.
+3. **Observational bias must be bounded:** The non-asymptotic bounds require a bound on observational error, which may be hard to establish without a small validation RCT of its own (chicken-and-egg).
+4. **Not designed for per-unit predictions at marketing-campaign level:** Like Rosenman shrinkage, this is about combining data sources for a treatment effect estimand. For campaign-level cross-experiment prediction, use PIE (§4.1).
+5. **Fresh:** Yang 2025 is a 2025 preprint. Practical deployments and broader validation are pending.
+
+##### How This Relates to Rosenman (§4.6) and Kallus (§4.5)
+
+| Dimension | Rosenman Shrinkage (§4.6) | Kallus Grounding (§4.5) | Yang Cross-Validated ERM (§4.6.1) |
+|-----------|--------------------------|-------------------------|-----------------------------------|
+| **Goal** | Combine two ATE estimates | Correct observational predictions using a small RCT | Unified ERM combination of both sources |
+| **Tuning parameter** | Shrinkage weight $\lambda$ via MSE-minimising formula | Bias function $b(x)$ via regression on RCT | Weight $\lambda$ via cross-validation on causal parameter |
+| **What the RCT does** | Provides unbiased anchor | Provides calibration signal for bias function | Provides held-out folds for CV + identifies the estimand |
+| **What the observational data does** | Provides precision | Provides coverage across feature space | Provides empirical signal weighted against its bias |
+| **Assumption structure** | Valid RCT + estimable bias | Transferable bias + low-dimensional $b(x)$ | Valid estimand + bounded observational bias on model class |
+| **Error characterisation** | Asymptotic MSE | Consistency + asymptotic normality | Non-asymptotic rate bounds |
+| **Extensibility** | Limited (closed-form weights) | Limited (regression-based) | High — any losses + any model class |
+| **Computational cost** | Very low | Low | Medium to high (CV over $\lambda$) |
+| **When to prefer** | Quick point estimate; small decision | Individual-level predictions with observational breadth | Want theoretical guarantees + flexible model class; willing to spend CV compute |
+
+**What the cross-validation mechanism adds:** Rosenman and Kallus both implicitly pick a combination rule. Rosenman's rule is MSE-optimal under asymptotic assumptions; Kallus's rule is determined by the bias function estimate. Yang replaces both with an explicit tuning procedure validated on the quantity of interest (the causal parameter), and the resulting $\lambda^*$ is data-driven and provably close to the optimal combination in finite samples. The cost is compute and some model-class bookkeeping; the benefit is a principled, auditable tuning knob that generalises across losses and estimands.
+
 ---
 
 ### 4.7 Target Trial Emulation
@@ -1480,6 +1553,87 @@ Observational methods fail when researchers don't think carefully about what hyp
 5. **Less common in industry:** The framework originated in clinical epidemiology and hasn't been widely adopted in marketing
 
 **Relation to other methods:** Can be combined with DML or doubly-robust estimation within the emulated trial. Complementary to experimental grounding (§4.5) and shrinkage estimators (§4.6) — target trial emulation specifies the estimand cleanly, while those methods handle the combination of experimental and observational evidence.
+
+---
+
+### 4.8 Local Empirical Bayes for Cross-Experiment Learning
+
+**Source:** Li et al. (2025). "Learning Across Experiments and Time." [arXiv:2511.21282](https://arxiv.org/abs/2511.21282).
+
+#### Problem
+
+The cross-experiment prediction methods in this review — PIE (§4.1), Amazon MTA (§4.2), Cross-Experiment Meta-Learning (§4.4), Yang's cross-validated ERM (§4.6.1) — all solve some version of the same question: how do you learn from a corpus of past experiments to inform a new one? They differ in unit of analysis and mechanism, but they share a **pooling problem**:
+
+1. **Across experiments:** Naive global pooling dilutes signal with unrelated noise. If experiments A, B, C tested very different interventions, treating them as exchangeable draws from a common population degrades prediction quality for all of them. Cross-experiment meta-learning (§4.4) flags this as its dominant failure mode (the "shared moderators" assumption often fails).
+
+2. **Within an experiment over time:** Treatment effects are rarely stationary — user populations drift, network effects take hold, seasonal patterns interact. Mixing early and late observations within the same experiment as if they were exchangeable draws induces bias from nonstationarity, which PIE (§4.1) flags under "concept drift."
+
+Li et al. observe that these are the *same* failure mode at different scales: pooling where pooling should not happen. The fix is to build a **context-aware comparison set** for every prediction — pool only what is comparable, both across experiments and within an experiment over time.
+
+#### Method
+
+The paper introduces a **local empirical Bayes** framework that adapts pooling to both dimensions.
+
+> **Key insight:** Build a context-aware comparison set. Time-aware within an experiment (respect nonstationarity); context-aware across experiments (only pool comparable experiments). Then apply empirical Bayes *locally* to that set, rather than globally across all data.
+
+The procedure:
+
+1. **Define a similarity structure** across experiments (feature-based, e.g., intervention type, population, platform context) and within experiments over time (recency, regime indicators).
+2. **For each target (experiment, time-window) pair:** identify the local neighbourhood — experiments similar on the across-dimension and time windows similar on the within-dimension.
+3. **Apply empirical Bayes on the neighbourhood:** estimate the prior over the effect distribution from the neighbours only, not the full corpus. Shrinkage is toward the neighbourhood mean, not the grand mean.
+4. **Prediction and inference:** Posterior mean of the target's effect, with credible intervals that reflect neighbourhood sample size (small neighbourhood → wide intervals; dense neighbourhood → tight).
+
+The paper develops theoretical analysis of when local pooling strictly dominates global pooling — roughly, when the across-experiment heterogeneity is large relative to the within-neighbourhood heterogeneity, or when nonstationarity within an experiment is substantial. Empirical validation on real experiment data shows local pooling outperforms both global pooling and no pooling across a range of comparison-set definitions.
+
+#### Assumptions
+
+| Assumption | Formal Statement | What Happens If Violated | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Meaningful similarity structure** | A similarity measure that correctly groups comparable experiments / time windows | Neighbourhoods contain noise, gains disappear | Cross-validated predictive accuracy across candidate similarity measures |
+| **Sufficient neighbourhood size** | Each neighbourhood has enough data to estimate the local prior | Empirical Bayes estimate of prior is itself noisy | Set a minimum neighbourhood size; flag targets below it |
+| **Local stationarity** | Within a neighbourhood, effects are exchangeable | Residual bias from sub-neighbourhood drift | Run diagnostics on pooled neighbourhood residuals |
+| **Representative corpus** | The corpus contains experiments and time windows similar to each target | Targets outside the support have no useful local neighbourhood | Coverage diagnostics: for each target, report neighbourhood size |
+| **Stable similarity definition** | Similarity doesn't drift (e.g., feature definitions don't change) | Neighbourhood assignments become inconsistent | Version and monitor similarity metadata |
+
+*When it works:* Large experiment corpora with structured heterogeneity — platforms running many A/B tests across recognisable categories (UI variants in one bucket, pricing in another, ranking changes in a third). The comparison-set construction is natural when you have clean experiment metadata (intervention type, surface, audience). Temporal adaptation works when you have enough data per experiment to segment into meaningful time windows.
+
+*When it fails:* Small corpora where every neighbourhood is sparse (the method reduces to high-variance local estimates with no pooling benefit). Also fails when the similarity structure is wrong — if experiments that look dissimilar by metadata are actually driven by the same latent moderators, forcing them apart loses signal. And it fails, obviously, if the metadata needed to define similarity does not exist.
+
+#### Key Findings
+
+- **Local pooling dominates global pooling** when across-experiment heterogeneity is large (which is the regime where pooling matters most) and when within-experiment nonstationarity is nontrivial.
+- Theoretical analysis characterises the bias-variance tradeoff: local pooling has larger variance (smaller effective sample size) but smaller bias (avoids pooling dissimilar data). Net MSE depends on the heterogeneity structure.
+- Empirical validation on real experiment data shows the framework directly addresses the known failure modes of PIE (concept drift) and cross-experiment meta-learning (dilution from unrelated experiments).
+- The framework is **method-agnostic** in the sense that any prior estimation method (parametric, non-parametric, hierarchical) can be plugged into the "apply empirical Bayes on the neighbourhood" step. It is a pooling rule, not a specific estimator.
+
+#### Limitations
+
+1. **Requires similarity metadata:** The framework is only as good as the similarity measure you give it. Platforms without clean experiment metadata (intervention taxonomy, audience tags, temporal regime indicators) cannot use it effectively.
+2. **Neighbourhood size trade-off:** Larger neighbourhoods = more stable priors but more heterogeneity bias; smaller = lower bias but noisier priors. The paper provides theory for the tradeoff but practitioners still need to tune the neighbourhood definition.
+3. **Not a replacement for PIE's prediction layer:** Li et al.'s framework is about *pooling* for learning the prior. PIE is about predicting the incremental causal effect of a campaign. The two are complementary — Li et al. can improve PIE's cross-experiment generalisation by restricting the training set to the local neighbourhood of the target campaign.
+4. **Fresh:** 2025 preprint. No broad validation on industry corpora yet beyond what the paper reports.
+5. **Similarity definition is a design problem:** Getting similarity right is the hard part. The paper gives principles (comparable intervention type, audience, platform), but the operational work is platform-specific and not transferable.
+
+#### How This Relates to PIE and Cross-Experiment Meta-Learning
+
+| Dimension | PIE (§4.1) | Cross-Experiment Meta-Learning (§4.4) | Local Empirical Bayes (§4.8) |
+|-----------|-----------|---------------------------------------|-----------------------------|
+| **Unit of prediction** | Campaign | User | Experiment (or experiment × time window) |
+| **Pooling mechanism** | Train one model on full RCT corpus | Shared user-level feature representation | Empirical Bayes on a local neighbourhood |
+| **Handles concept drift** | No — flagged as limitation | No — temporal stability assumed | Yes — time-windowing within experiment |
+| **Handles unrelated experiments** | No — assumes corpus is coherent | Partially — via shared moderators | Yes — only pools local neighbourhood |
+| **Theoretical guarantees** | Empirical (R² = 0.88) | Working paper, empirical | Bias-variance characterisation + empirical |
+| **Output** | Per-campaign ICPD | Per-user CATE for new experiments | Per-target posterior mean + credible interval |
+| **What it *replaces*** | Observational attribution | Single-experiment uplift models | Global shrinkage / naive pooling |
+| **What it *complements*** | — | — | PIE's training set; meta-learning's pooling rule |
+
+**Framing:** Li et al.'s contribution is a *refinement* of the pooling logic that sits underneath PIE (§4.1) and cross-experiment meta-learning (§4.4). PIE remains one well-validated method among many for predicting campaign-level incrementality; local empirical Bayes gives it (and related methods) a more defensible pooling rule when the training corpus is heterogeneous or drifting. In deployment, you would use local empirical Bayes to construct the training sample for each new PIE prediction rather than treating the full corpus as exchangeable.
+
+**Connection to Other Sections:**
+- **§4.1 PIE:** Local empirical Bayes addresses the "concept drift" limitation flagged in PIE's limitations list. Restrict PIE's training data to the local temporal neighbourhood of the target campaign.
+- **§4.4 Cross-Experiment Meta-Learning:** Directly addresses that section's "shared moderators" failure mode. See §4.4's updated note.
+- **§4.6 / §4.6.1 Shrinkage and Cross-Validated ERM:** Local empirical Bayes is a different slice of the same general problem (combining information across units). Shrinkage and ERM combine across data *sources* (experimental vs. observational); local empirical Bayes combines across experiments *within* the experimental corpus. The two can stack.
+- **§7.1 Random-Effects Meta-Analysis:** Local empirical Bayes is, in spirit, a predictive meta-analysis with locality. Random-effects meta-analysis gives you a single pooled effect; local empirical Bayes gives you a neighbourhood-specific effect, which is what prediction needs.
 
 ---
 
@@ -2140,6 +2294,8 @@ These methods, taken together, represent the current frontier of data fusion for
 | **Amazon MTA** | 4.2 | Cross-Experiment | **No** | Touchpoint | PIE assumptions + touchpoint model | **High** | Good (calibrated) | Very High | Touchpoint-level attribution |
 | **Causal ML / Uplift** | 4.3 | Within-Experiment | Yes (per campaign) | User | RCT validity | Low (per campaign) | Good (within experiment) | High | User-level targeting |
 | **Cross-Experiment Meta-Learning** | 4.4 | Cross-Experiment | No (pools existing) | User | Shared moderators | Medium | Moderate | High | User-level personalisation |
+| **Cross-Validated ERM (Yang)** | 4.6.1 | Data Combination | No (combines) | Varies | Valid estimand + bounded obs bias | Medium | Moderate-High | Medium-High | Combining RCT + observational with finite-sample guarantees |
+| **Local Empirical Bayes (Li)** | 4.8 | Cross-Experiment | No (pools existing) | Experiment × time | Meaningful similarity structure + sufficient neighbourhood | Medium | Refinement over global pooling | Medium | Heterogeneous or drifting experiment corpora |
 | **Bayesian MMM + Lift Tests** | 5.1 | Structural | Periodic | Channel × Time | Functional form, calibration recency | Medium-High | Moderate (±20–40%) | High | Channel-level budget allocation |
 | **Transportability** | 6.1 | Formal Framework | No (reuses existing) | Population | Known causal graph, mechanism stability | Low | Depends on graph | Low (theory), High (practice) | Formal extrapolation |
 | **External Validity (Empirical)** | 6.2 | Empirical | No (reuses existing) | Site/Setting | Observable moderators | Low-Medium | Moderate | Low-Medium | Understanding generalisability |
@@ -2398,6 +2554,14 @@ This combines PIE (§4.1) with transportability (§6.1):
 | **PIE** | SUTVA within campaigns | No interference between campaigns | Campaign effects ill-defined | Check budget competition | Usually yes |
 | **Amazon MTA** | PIE assumptions | All of the above | Cascading bias to touchpoint level | All of the above | Same as PIE |
 | **Amazon MTA** | Touchpoint model validity | ML model captures touchpoint contribution | Credit misallocated | Holdout validation | Hard to validate |
+| **Cross-Validated ERM (Yang)** | Valid experimental estimand | RCT identifies the causal parameter | Wrong target | Standard RCT checks | Usually yes |
+| **Cross-Validated ERM (Yang)** | Model class adequate | $\inf_f L_{\text{exp}}(f) + L_{\text{obs}}(f)$ small | Approximation-error bias | Expand model class; CV diagnostics | Depends on problem |
+| **Cross-Validated ERM (Yang)** | Bounded observational bias | Observational loss uniformly bounded on model class | Non-asymptotic bounds break | Bound obs error on overlap | Hard to verify a priori |
+| **Cross-Validated ERM (Yang)** | Sufficient experimental folds | $K$-fold CV has enough data per fold | Noisy $\lambda$ selection | Use $K = 5$–$10$; simulate | Needs medium RCT (hundreds+) |
+| **Local Empirical Bayes (Li)** | Meaningful similarity structure | Similarity metric correctly groups comparable experiments | Noisy neighbourhoods; no gain over global | Cross-validated predictive accuracy | Platform-dependent |
+| **Local Empirical Bayes (Li)** | Sufficient neighbourhood size | Enough neighbours to estimate local prior | Noisy prior estimate | Minimum neighbourhood threshold | Fails for sparse corpora |
+| **Local Empirical Bayes (Li)** | Local stationarity | Effects exchangeable within neighbourhood | Residual nonstationarity bias | Residual diagnostics on neighbourhood | Requires monitoring |
+| **Local Empirical Bayes (Li)** | Representative corpus | Targets fall inside supported neighbourhoods | No useful neighbourhood → no pooling benefit | Coverage diagnostic per target | Corpus-dependent |
 
 ### B.4 Marketing Mix Models
 
@@ -2466,6 +2630,8 @@ This combines PIE (§4.1) with transportability (§6.1):
 
 13. **Huang, Ascarza, Israeli (2024).** "Pooling Multiple Experiments to Predict Individual-Level Treatment Effects for Personalization." Working paper.
 
+13a. **Li et al. (2025).** "Learning Across Experiments and Time." [arXiv:2511.21282](https://arxiv.org/abs/2511.21282).
+
 ### Marketing Mix Models
 
 14. **Jin, Li, Naik et al. (2017).** "Bayesian Methods for Media Mix Modeling with Carryover and Shape Effects." Google Research.
@@ -2521,6 +2687,8 @@ This combines PIE (§4.1) with transportability (§6.1):
 33. **Kallus, Puli, Shalit (2018).** "Removing Hidden Confounding by Experimental Grounding." *Advances in Neural Information Processing Systems (NeurIPS) 31*. [arXiv:1810.11646](https://arxiv.org/abs/1810.11646)
 
 34. **Rosenman, Basse, Owen, Baiocchi (2023).** "Combining Observational and Experimental Datasets Using Shrinkage Estimators." *Biometrics*, 79(4), 2961–2973. [arXiv:2002.06708](https://arxiv.org/abs/2002.06708)
+
+34a. **Yang et al. (2025).** "Cross-Validated Causal Inference: A Modern Method to Combine Experimental and Observational Data." [arXiv:2511.00727](https://arxiv.org/abs/2511.00727).
 
 35. **Hernán & Robins (2016).** "Using Big Data to Emulate a Target Trial When a Randomized Trial Is Not Available." *American Journal of Epidemiology*, 183(8), 758–764. [DOI](https://doi.org/10.1093/aje/kwv254)
 

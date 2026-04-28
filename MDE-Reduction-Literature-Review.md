@@ -301,6 +301,18 @@ Where:
 
 **Practical tip:** Many experimentation platforms (Statsig, Eppo, internal tools) now support delta method automatically. Check your platform's documentation.
 
+#### GBDT Control Variates for Ratio Metrics (ShareChat)
+
+**Source:** [Variance Reduction in Ratio Metrics for Efficient Online Experiments](https://arxiv.org/abs/2401.04062) by Jeunen et al. (ShareChat, RecSys 2024)
+
+ShareChat applied variance reduction to CTR and retention (both ratio metrics) on production traffic and found that **GBDT-based control variates consistently outperformed linear CUPED** on linearised ratio metrics. The empirical result: 77% improvement in test confidence for a fixed sample, or equivalently, **30% fewer data points required** to reach the same confidence level.
+
+**The counter-intuitive finding:** Adding more covariates to the control variate was *counter-productive* past a small set. Piling on ten or twenty features gave worse variance reduction than a handful of well-chosen ones. The paper's diagnosis is that control variate variance is itself penalised in the adjusted metric — weak covariates add noise faster than they add signal. **Control variate *selection* matters more than quantity.**
+
+Practically: start with the strongest 2-4 covariates (pre-period linearised metric, user activity level, a platform-usage feature), fit a GBDT control variate, and evaluate on held-out A/A traffic. Only add more features if the adjusted variance strictly decreases. This contradicts the "more features = better CUPAC" intuition that underlies much industry practice and that Section 2.2 of this review implicitly assumed for additive metrics.
+
+**When this lesson applies:** ratio metrics (CTR, retention, conversion rate) where the denominator variance limits the available $\rho^2$. For additive metrics, the CUPAC literature still supports rich feature sets — the ratio-metric penalty on control-variate noise is the key distinction.
+
 ### Method Stacking: What Combines Well
 
 | Base Method | Can Add | Expected Combined Gain | Cannot Add |
@@ -987,6 +999,56 @@ Typical combined reduction: 50-80% for revenue metrics.
 
 **Connection to Practitioner's Guide:** This section provides the theoretical foundation for the "Heavy tails" row in the Ratio Metrics table, explaining *why* winsorisation is recommended for revenue metrics. For methods to efficiently *validate* that your variance estimates are correct (a prerequisite for trusting any variance reduction), see Section 2.9.
 
+#### STATE: Student's t-Based Robust Variance Reduction
+
+**Source:** [STATE: A Robust ATE Estimator of Heavy-Tailed Metrics for Variance Reduction in Online Controlled Experiments](https://arxiv.org/abs/2407.16337) by Zhou et al. (Meituan, 2024)
+
+**Core Idea:** Winsorisation and EVT (above) handle heavy tails by truncating or modelling the tail separately, but they leave the main variance reduction machinery (CUPED/CUPAC) running on Gaussian assumptions that outliers silently violate. STATE attacks the problem one level deeper: it replaces the Gaussian likelihood inside the covariate-adjustment step with a **Student's t-distribution** fit via variational EM, giving a single robust estimator that handles heavy tails and reduces variance simultaneously.
+
+**The Gap Being Filled:** CUPED and CUPAC reduce variance in proportion to $\rho^2$, the correlation between pre-experiment covariates and outcomes. Outliers damage this correlation even when they are a small fraction of the data — a single whale in the tail can drag $\rho$ down by 0.1 or more. Winsorisation partially recovers $\rho$ but at the cost of a bias whose size depends on the threshold. STATE sidesteps the threshold entirely: by modelling the residuals as Student's t rather than Gaussian, the estimator automatically downweights extreme observations in proportion to how extreme they are, preserving correlation without explicit truncation.
+
+**Method:**
+1. **Likelihood:** Assume the residual from the covariate model follows a Student's t-distribution with $\nu$ degrees of freedom and scale $\sigma$. Smaller $\nu$ = heavier tails = more downweighting of extremes.
+2. **Variational EM:** Fit $\nu$, $\sigma$, and the regression coefficients by alternating (a) E-step: compute posterior weights for each observation based on its residual magnitude; (b) M-step: update coefficients via weighted least squares with those weights.
+3. **ATE estimate:** The treatment effect is computed from the weighted-residual regression, with the t-distribution providing valid standard errors that account for tail behaviour.
+4. **Ratio metric extension:** A linear transformation of the estimator preserves unbiasedness for ratio metrics (e.g., revenue-per-user), so STATE plugs into the Delta method pipeline without modification.
+
+**Assumptions:**
+
+| Assumption | Formal Statement | What Happens If Violated | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Randomisation** | $X \perp W$ | Biased ATE (same as CUPED) | Covariate balance |
+| **Tail symmetry** | Residuals symmetric around mean | Bias from one-sided outliers | QQ-plot of residuals |
+| **Sufficient tail data** | Enough observations in tail to estimate $\nu$ | Unstable $\nu$ estimate, defaults to near-Gaussian | Monitor $\hat{\nu}$ across runs |
+| **Pre-experiment covariate quality** | $X$ predictive of $Y$ in the body of the distribution | No more variance reduction than CUPED | Compare $\rho$ on trimmed data |
+
+*When it works:* Revenue and engagement metrics at platform scale, where the tail is heavy but not pathological (i.e., $\nu > 2$ so variance exists). Meituan's food-delivery order value is the canonical example.
+
+*When it fails:* Extremely heavy tails ($\nu \leq 2$) where even the Student's t likelihood has infinite variance — in that regime EVT-based methods remain preferable. Also fails when outliers are asymmetric (e.g., only positive spikes), which violates the symmetric t-distribution assumption.
+
+**Key Findings:**
+- Reports 50%+ variance reduction over CUPAC and MLRATE on Meituan production data, with gains concentrated in the metrics where CUPED/CUPAC underperformed due to tail contamination
+- Linear transformation to ratio metrics preserves unbiasedness and maintains the variance reduction advantage
+- Variational EM converges in 5-20 iterations for typical platform data; computational overhead is comparable to CUPAC
+
+**Limitations:**
+1. **Symmetric tail assumption:** Student's t is symmetric. For metrics with one-sided tails (refund amounts, bounce counts), EVT with a GPD tail model is a better fit.
+2. **Requires tail data:** If the tail is too sparse to estimate $\nu$, the method defaults toward a Gaussian and provides no advantage over CUPED.
+3. **Limited public validation:** Evidence is from Meituan; independent replication on other platforms has not yet appeared.
+4. **Harder to explain:** Variational EM is less transparent than "winsorise at 99th percentile then CUPED," which matters for governance and audit.
+
+**When to Use STATE vs. Winsorisation + CUPED:**
+
+| Criterion | STATE | Winsorisation + CUPED |
+|-----------|-------|----------------------|
+| Bias from truncation | None | Small but non-zero |
+| Handles asymmetric tails | No | Yes (with side-specific threshold) |
+| Threshold tuning required | No | Yes |
+| Operational simplicity | Medium | High |
+| Reported VR on Meituan data | 50%+ over CUPAC | 30-60% over raw |
+
+**Rule of thumb:** If you already run CUPAC, STATE is the natural upgrade for revenue metrics. If you are still on linear CUPED, winsorisation + CUPED will likely close most of the gap at lower operational cost.
+
 ---
 
 ### 2.9 Platform-Level Variance Diagnostics: Evaluating Variance Estimate Quality
@@ -1090,6 +1152,7 @@ Where $N(\alpha, \beta)$ is the number of A/A tests required to detect variance 
 | **Sparse/Delayed Surrogates** | 2.8 | $\sigma^2 \rightarrow \sigma^2(1-\rho^2_{surrogate})$ | 40-70% | Medium | Surrogate metrics | Sparse/delayed outcomes |
 | **Neural Adjustment (Deep-CUPED)** | 2.9 | $\sigma^2 \rightarrow \sigma^2(1-R^2_{neural})$ | 40-70% | High | Neural network infra | High-dimensional features |
 | **Heavy-Tailed Robust (EVT)** | 2.10 | $\sigma^2 \rightarrow \sigma^2_{robust}$ | 30-60% | Medium | Tail diagnostics | Revenue/monetary metrics |
+| **STATE (Student's t VR)** | 2.8 | $\sigma^2 \rightarrow \sigma^2_{t}(1-\rho^2_{t})$ | 50%+ over CUPAC | Medium | Heavy-tailed metric + covariates | Heavy-tailed revenue metrics already on CUPAC |
 
 **Combining Variance Reduction Methods:**
 
@@ -1546,6 +1609,8 @@ $$\sigma^2_{eff} = \sigma^2\left(1 + 2\rho + \frac{\gamma^2}{\sigma^2}\right)$$
 - More robust to model misspecification
 - Better variance-bias trade-off
 
+*Switchback under Geometric Mixing (Zhao et al. 2023/2025):* [Design and Analysis of Switchback Experiments](https://arxiv.org/abs/2209.00197) (v4, 2025) — tightens the theoretical analysis of switchback designs under a **geometric mixing** assumption on the treatment effect carryover: roughly, the influence of a past treatment assignment on the current outcome decays at a geometric rate with lag. This is a cleaner and more testable assumption than arbitrary bounded carryover, and under it the paper derives sharper MSE and coverage results than the data-driven Bayesian designs in Xiong et al. (2023). Practical implication: when you can argue (domain-level) that carryover decays quickly and smoothly, use the geometric-mixing bounds to size periods and trim burn-in; they give smaller MDEs than the worst-case bounds you would otherwise default to. The assumption is what buys the improvement, so it should be validated on pilot data.
+
 **Limitations:**
 - Carryover effects can bias estimates
 - Requires careful period length selection
@@ -1981,6 +2046,28 @@ Where:
 - More clusters with fewer units each → lower variance but harder logistics
 - Fewer clusters with more units → higher variance but simpler implementation
 - Rule of thumb: Aim for $\geq 20$ clusters per arm for reliable inference
+
+**Caveat: Homophily Can Make Cluster Randomisation *Worse* Than User-Level**
+
+**Source:** [Optimal Design under Interference, Homophily, and Robustness Trade-offs](https://arxiv.org/abs/2601.17145) by Brennan et al. (2024)
+
+The standard pitch for cluster randomisation is that it handles interference. But Brennan et al. show that in the presence of **homophily** — the tendency of similar units to be connected (abundant in social networks, recommendation systems, and any user graph with community structure) — cluster-randomised designs can *increase* MSE relative to user-level randomisation rather than decrease it.
+
+**The mechanism:** Cluster randomisation reduces bias from cross-cluster interference at the cost of the design-effect variance inflation $(1 + (m-1)\rho_{ICC})$. Under homophily, units within a cluster are similar on potential outcomes, so $\rho_{ICC}$ is large. If the interference being removed is small relative to the variance being added, the net MSE goes up. The paper provides a framework for the bias-variance tradeoff that practitioners should run before committing to a cluster design.
+
+**When cluster randomisation helps vs. hurts** (rough guidance distilled from the paper):
+
+| Network property | Cluster randomisation verdict | Why |
+|------------------|-------------------------------|-----|
+| **Low homophily, high interference** | Helps | Interference is the dominant problem; cluster design effect is small because within-cluster variance is close to between-cluster |
+| **High homophily, high interference** | Depends on degree distribution; run the bias-variance calc | Both problems are large; explicit tradeoff needed |
+| **High homophily, low interference** | Hurts | Design-effect inflation dominates; user-level randomisation is better |
+| **Low homophily, low interference** | Unnecessary | Neither problem is pressing; use user-level |
+| **Heavy-tailed degree distribution** | Use caution | A few high-degree nodes carry most interference; cluster boundaries may not contain it |
+
+**Practical diagnostic:** Before committing to cluster randomisation, estimate $\rho_{ICC}$ on pre-period data *and* an upper bound on the interference bias (e.g., via a network-exposure model or a small-scale pilot). Compute the MSE of both designs and pick the smaller one. Do not default to "cluster = handles interference" without this check — the homophily-driven variance cost is often underestimated.
+
+**Connection to §5.1 Causal Clustering:** The causal-clustering approach below tries to *design* clusters that minimise this tradeoff (forming clusters that contain interference without pulling in homophilous units that share outcomes). Brennan et al.'s framework is complementary — it tells you whether the tradeoff is worth attempting at all.
 
 #### Causal Clustering for Network Interference
 
@@ -2806,6 +2893,7 @@ The paper validates on a simulation where $F_0 = N(0,1)$ with measurement error 
 | **Sparse/Delayed Surrogates** | 2.8 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-\rho^2_{surrogate})$ | 40-70% | Medium | Surrogate metrics |
 | **Neural Adjustment (Deep-CUPED)** | 2.9 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2(1-R^2_{neural})$ | 40-70% | High | Neural network infra |
 | **Heavy-Tailed Robust** | 2.10 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{robust}$ | 30-60% (revenue) | Medium | Tail diagnostics |
+| **STATE (Student's t VR)** | 2.8 | Variance Reduction | $\sigma^2 \rightarrow \sigma^2_{t}(1-\rho^2_{t})$ | 50%+ over CUPAC (Meituan) | Medium | Heavy-tailed metric + covariates |
 | **GST** | 3.1 | Sequential Testing | $n \rightarrow n \cdot ASN_{ratio}$ | 30-50% (sample) | Medium | Pre-planned schedule |
 | **Always Valid** | 3.2 | Sequential Testing | Early stopping any time | 20-40% (sample) | Medium | Continuous data |
 | **mSPRT** | 3.3 | Sequential Testing | $n \rightarrow E[n_{stop}]$ | 20-40% (sample) | Medium | Continuous data |
@@ -3146,6 +3234,87 @@ Empirical validation on 167 real experiments with paired replication studies sho
 
 ---
 
+### 10.2 Zoom Correction: Frequentist Winner's Curse Inference
+
+**Source:** [A Flexible Defense Against the Winner's Curse](https://arxiv.org/abs/2411.18569) by Zrnic (2024)
+
+#### Problem
+
+Section 10.1 corrects the Winner's Curse with a Bayesian prior over the population of experiments. That works well when you have a large experiment corpus and a defensible prior, but it leaves two gaps:
+
+1. **Single-experiment settings:** If you are picking the best variant from 5 arms in a single experiment, or reporting on "the top campaign" from a quarterly readout, there is no "population of experiments" to estimate a prior from. You need inference on the winner itself.
+2. **Distribution-free guarantees:** The Bayesian approach relies on the prior being a reasonable model of the effect distribution. In regulated or adversarial settings (external audit, publication), a frequentist guarantee that holds without a prior is valuable even at the cost of wider intervals.
+
+The classical frequentist fix — Bonferroni, or polyhedral conditioning on the selection event (Lee et al. 2016, Tian & Taylor 2018) — either wastes power or requires strong independence/normality assumptions that break down with correlated test statistics or non-Gaussian estimators.
+
+#### Method
+
+Zrnic introduces the **zoom correction**, a single frequentist procedure for valid inference on the winner (or top-k, or near-winners) that is distribution-free, handles arbitrary dependencies between candidates, and **auto-adapts to the level of selection bias** in the data.
+
+> **Key insight:** Rather than correcting for *possible* selection by inflating intervals for the worst case, zoom in on the data-driven level of selection that actually occurred. When the winner is clearly the winner (large gap to runner-up), the correction is small; when the winner is barely ahead of the pack, the correction is large.
+
+The procedure:
+
+1. **Compute point estimates** $\hat{\theta}_1, \ldots, \hat{\theta}_K$ and standard errors for all candidates.
+2. **Identify the winner** $\hat{j}^* = \arg\max_j \hat{\theta}_j$.
+3. **Estimate the selection-bias level** from the observed gaps between the winner and the other candidates. This is the "zoom" step: the wider the gap, the less the winner looks like a noisy draw from the top of the distribution.
+4. **Construct a confidence interval** for $\theta_{\hat{j}^*}$ using a bootstrap or closed-form calibration that respects the zoom level.
+5. **Extensions:** The same procedure extends to top-k winners (CIs for the top 3), near-winners (CIs for everyone within $\epsilon$ of the top), and value-and-identity inference (jointly covering both which variant won and its effect size).
+
+Unlike polyhedral conditioning, zoom correction does **not** require the selection event to be a polyhedron in the estimate space. It works with any selection rule, including rules based on multiple metrics, guardrails, or composite scores.
+
+#### Assumptions
+
+| Assumption | Formal Statement | What Happens If Violated | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Consistent point estimator** | $\hat{\theta}_j \to \theta_j$ in probability | Nominal coverage fails | Standard consistency checks on $\hat{\theta}$ |
+| **Estimable covariance** | The joint covariance of $(\hat{\theta}_1, \ldots, \hat{\theta}_K)$ can be estimated | Correlated selection mishandled | Bootstrap variance matrix |
+| **Selection rule known** | The rule that picks the winner is known to the analyst | Post-hoc selection invalidates the correction | Document the decision rule before looking at data |
+| **Sufficient sample size** | Bootstrap approximation valid (asymptotic) | Finite-sample under-coverage | Simulation check at relevant $n$ |
+
+*When it works:* Anywhere you have $K \geq 2$ candidate estimates with an estimable joint distribution — multi-arm A/B tests, top-of-leaderboard reporting, algorithm benchmarks, "best of quarter" retrospectives. Parametric and nonparametric estimators are both supported.
+
+*When it fails:* When the selection rule is not pre-specified — if you pick the winner after looking at the data, then re-define "winner" when the correction is too wide, coverage is lost. Also fails when $K$ is very large relative to $n$, because the covariance matrix estimation dominates.
+
+#### Key Findings
+
+- Provides valid 95% CIs for the winner under arbitrary dependency structures between candidates, with no distributional assumption beyond a consistent estimator and an estimable covariance.
+- Adapts automatically: when the winner is decisive, intervals are close to the naive unadjusted CIs; when the winner is borderline, intervals widen to account for selection.
+- Extends to top-k and near-winners with the same machinery, unlike Bonferroni which requires a fixed number of contrasts.
+- Supports **value-and-identity inference**: jointly cover the winner's identity and effect size, which is what downstream decisions typically need ("variant B is the winner and its effect is 2.3% ± 0.8%") rather than separate claims.
+
+#### Limitations
+
+1. **Bootstrap cost:** The default procedure uses bootstrap resampling, which adds compute. For a 5-arm test with 1M samples per arm, expect seconds to minutes; for thousand-arm benchmarks, tens of minutes.
+2. **Asymptotic guarantee:** Coverage is exact asymptotically; finite-sample coverage can dip below nominal for small $n$ or extreme correlations.
+3. **Requires pre-specified selection rule:** As with any valid-inference procedure, post-hoc changes to "what counts as the winner" break the guarantee. This is a discipline cost, not a technical limitation.
+4. **Not a replacement for Bayesian shrinkage at platform scale:** When you have thousands of experiments and care about aggregate debiased impact accounting (summing launched effects), §10.1's Bayesian approach is more efficient. Zoom correction is the right tool for one-off winner inference, not recurring platform-level accounting.
+5. **Does not handle sequential selection:** If the "winner" is itself the result of a sequential testing rule (§3), the zoom correction needs to be combined with sequential inference tools, which is not covered in the paper.
+
+#### How This Relates to §10.1 Bayesian Hybrid Shrinkage
+
+| Dimension | §10.1 Bayesian Hybrid Shrinkage | §10.2 Zoom Correction |
+|-----------|-------------------------------|------------------------|
+| **Paradigm** | Bayesian (prior + posterior) | Frequentist (CIs with nominal coverage) |
+| **Assumption strength** | Prior must be reasonable model of effect distribution | Consistent estimator + estimable covariance |
+| **Flexibility** | Tied to the population of experiments being modelled | Distribution-free; arbitrary dependencies between candidates |
+| **Interpretability** | Posterior mean + credible interval (per experiment) | Frequentist CI for the winner's effect |
+| **Target** | Debiased effect size for every experiment in the corpus | Valid inference on the selected winner(s) |
+| **Data requirement** | Population of $N$ experiments (hundreds to thousands) | Single decision problem with $K \geq 2$ candidates |
+| **Computational cost** | Closed-form (conjugate) | Bootstrap or closed-form calibration |
+| **Selection handling** | Joint-selection paradigm — prior absorbs it | Explicit correction that adapts to observed selection |
+| **When to use** | Platform-scale impact accounting, aggregate decisions | Single experiment / quarterly readout / "top campaign" inference |
+| **Failure mode** | Misspecified prior → degraded accuracy | Post-hoc selection rule → lost coverage |
+
+**Combined use:** The two methods are complementary, not competing. A mature experimentation platform runs Bayesian hybrid shrinkage on its full experiment corpus for impact reporting *and* applies zoom correction to one-off winner-selection problems (e.g., ranking-model bake-offs, ad creative selection, leaderboard reports). The common failure mode both address — winners look better than they are — is the same; the target users and deployment pattern differ.
+
+**Connection to Other Sections:**
+- **Section 10.1 (Bayesian Hybrid Shrinkage):** Frequentist companion, as described above.
+- **Section 2 (Variance Reduction):** Variance reduction reduces the magnitude of the Winner's Curse at source, which reduces the size of the correction zoom applies. The two methods stack: run CUPED/CUPAC first, then zoom correction on the adjusted estimates.
+- **Mitigation Strategies table (§10 header):** This subsection expands the "Effect size adjustment" row with a concrete distribution-free method.
+
+---
+
 ## 11. Variance Reduction for Heterogeneous Treatment Effects (HTE)
 
 **Source:** [Estimation and Inference of Heterogeneous Treatment Effects using Random Forests](https://arxiv.org/abs/1510.04342) by Athey & Wager (2018); [Generalized Random Forests](https://arxiv.org/abs/1610.01271) by Athey, Tibshirani & Wager (2019)
@@ -3283,8 +3452,9 @@ $$Var(\hat{\tau}) \approx \frac{2\sigma^2}{T}\left(1 + 2\rho + \frac{\gamma^2}{\
 | **Stationarity** | $\tau_t = \tau$ for all $t$ | Heterogeneous effects conflated | Test for time trends |
 | **No anticipation** | $Y_t(w) \perp W_{t+1}$ | Bias in pre-treatment periods | Check for pre-trends |
 | **Sufficient period length** | Period > carryover duration | Carryover contaminates control | Domain knowledge, pilot studies |
+| **Geometric mixing of carryover (Zhao et al.)** | Influence of past assignments on current outcome decays geometrically in lag | Sharper bounds in §4.1 no longer apply; fall back to worst-case carryover bounds | Fit a lagged-treatment model on pilot data; check decay rate |
 
-**Key insight:** Carryover is the dominant concern. When in doubt, use longer periods and exclude "burn-in" observations.
+**Key insight:** Carryover is the dominant concern. When in doubt, use longer periods and exclude "burn-in" observations. When you can defend geometric mixing from pilot data, use the tighter Zhao et al. bounds to size periods.
 
 ### B.4 Interleaving Methods
 
@@ -3305,8 +3475,9 @@ $$Var(\hat{\tau}) \approx \frac{2\sigma^2}{T}\left(1 + 2\rho + \frac{\gamma^2}{\
 | **Sufficient clusters** | $K \geq 20$ clusters | Underpowered, invalid inference | Power calculation |
 | **Cluster homogeneity** | Within-cluster variance < between-cluster | Inefficient design | Analyse variance components |
 | **Stable cluster composition** | Cluster membership fixed | Contamination | Monitor user migration |
+| **Homophily vs. interference trade-off (Brennan et al.)** | MSE reduction from removed interference > MSE inflation from $(1+(m-1)\rho_{ICC})$ | Cluster randomisation can *increase* MSE | Compute both-design MSE on pre-period data before committing |
 
-**Key insight:** Cluster randomisation trades variance for bias reduction. Expect 2-10x larger MDE than user-level randomisation.
+**Key insight:** Cluster randomisation trades variance for bias reduction. Expect 2-10x larger MDE than user-level randomisation. Under high homophily, the trade may not be worth making at all — run the bias-variance calculation before defaulting to cluster.
 
 ### B.6 Robust Estimation (Heavy Tails)
 
@@ -3315,8 +3486,24 @@ $$Var(\hat{\tau}) \approx \frac{2\sigma^2}{T}\left(1 + 2\rho + \frac{\gamma^2}{\
 | **Finite variance (standard methods)** | $E[Y^2] < \infty$ | Invalid CLT, unreliable CI | Hill estimator, kurtosis |
 | **Appropriate winsorisation threshold** | Threshold captures outliers, not signal | Bias if too aggressive | Sensitivity analysis |
 | **Tail behaviour stable** | Tail index constant over time | Inconsistent robust estimates | Monitor tail diagnostics |
+| **STATE — tail symmetry** | Residuals symmetric around mean | Bias from one-sided outliers | QQ-plot of residuals |
+| **STATE — sufficient tail data** | Enough observations to estimate $\nu$ | $\hat{\nu}$ unstable; defaults to near-Gaussian (no gain over CUPED) | Monitor $\hat{\nu}$ across runs |
+| **STATE — t-distribution has finite variance** | $\nu > 2$ | Invalid CI; EVT required instead | Fit $\hat{\nu}$; if $\leq 2$, switch to EVT |
 
-**Key insight:** For revenue metrics, *always* check for heavy tails before applying standard methods. Winsorisation + CUPED is the recommended default.
+**Key insight:** For revenue metrics, *always* check for heavy tails before applying standard methods. Winsorisation + CUPED is the recommended default; STATE is the upgrade when CUPAC is already in place and residual tail contamination is damaging $\rho$.
+
+### B.7 Winner's Curse Methods (§10)
+
+| Assumption | Formal Statement | Consequence of Violation | How to Check |
+|------------|------------------|-------------------------|--------------|
+| **Bayesian prior reasonable (§10.1)** | Prior is a reasonable model of the effect distribution | Biased posteriors, degraded accuracy | Compare posterior predictive to held-out experiments |
+| **Joint selection paradigm (§10.1)** | Each experiment tests a different feature; winners selected from the population | Marginal-selection bias not corrected | Audit experiment provenance |
+| **Population of experiments (§10.1)** | Hundreds to thousands of experiments available | Empirical Bayes prior estimation unreliable | Count experiments per quarter |
+| **Consistent point estimator (§10.2)** | $\hat{\theta}_j \to \theta_j$ in probability for each candidate | Nominal coverage fails | Standard consistency checks |
+| **Pre-specified selection rule (§10.2)** | "Winner" defined before looking at data | Post-hoc selection loses coverage | Document rule before readout |
+| **Estimable joint covariance (§10.2)** | Joint covariance of $(\hat{\theta}_1, \ldots, \hat{\theta}_K)$ can be estimated | Correlated selection mishandled | Bootstrap covariance matrix |
+
+**Key insight:** §10.1 and §10.2 address the same problem (winners look better than they are) from different angles. §10.1 is the platform-scale debiasing tool (Bayesian); §10.2 is the single-decision valid-inference tool (frequentist). They stack — run §10.1 on the corpus, §10.2 on the readout.
 
 ---
 
@@ -3336,6 +3523,9 @@ $$Var(\hat{\tau}) \approx \frac{2\sigma^2}{T}\left(1 + 2\rho + \frac{\gamma^2}{\
 | **Interleaving** | ⚠️ (if no position bias) | ✓ (within-user comparison) | ⚠️ (depends on assumptions) | ✗ |
 | **Cluster** | ✓ (if no between-cluster interference) | ✗ (increases variance) | ✓ | ✗ |
 | **Winsorisation** | ⚠️ (small bias) | ✓ (stabilises variance) | ✓ (if bias acceptable) | ✗ |
+| **STATE (Student's t VR)** | ✓ (under randomisation + tail symmetry) | ✓ (50%+ over CUPAC on heavy-tailed metrics) | ✓ (t-based SE) | ✗ |
+| **Bayesian Hybrid Shrinkage (§10.1)** | ✓ (post-hoc debiases winners) | ✗ (not a VR method) | ✓ (credible intervals) | ✗ |
+| **Zoom Correction (§10.2)** | ✓ (valid frequentist CI for the winner) | ✗ (not a VR method) | ✓ (nominal coverage, adaptive width) | ✗ |
 
 **Legend:**
 - ✓ = Guaranteed under standard conditions
